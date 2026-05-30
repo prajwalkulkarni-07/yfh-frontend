@@ -4,6 +4,9 @@ import type {
   AttendanceRecord,
   AttendanceEntry,
   AttendanceSummaryItem,
+  InactiveReportItem,
+  EligibleReportItem,
+  StudentDetailsResponse,
   User,
 } from "@/types"
 
@@ -90,8 +93,11 @@ export async function changePassword(
 // Students
 export async function createStudent(data: {
   full_name: string
-  email?: string
-  phone?: string
+  phone: string
+  age: number
+  student_type: "studying" | "working"
+  institution_name?: string
+  company_name?: string
 }): Promise<Student> {
   return request("/api/students", {
     method: "POST",
@@ -106,6 +112,10 @@ export async function getStudents(active?: boolean): Promise<Student[]> {
 
 export async function getStudent(id: string): Promise<Student> {
   return request(`/api/students/${id}`)
+}
+
+export async function getStudentDetails(id: string): Promise<StudentDetailsResponse> {
+  return request(`/api/students/${id}/details`)
 }
 
 export async function updateStudent(
@@ -189,4 +199,12 @@ export async function getAttendanceSummary(
       absent,
     } as AttendanceSummaryItem
   })
+}
+
+export async function getInactiveReport(): Promise<InactiveReportItem[]> {
+  return request("/api/reports/inactive")
+}
+
+export async function getEligibleReport(): Promise<EligibleReportItem[]> {
+  return request("/api/reports/eligible")
 }

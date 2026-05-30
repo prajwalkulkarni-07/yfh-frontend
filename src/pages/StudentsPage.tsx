@@ -2,15 +2,10 @@ import { useEffect, useState, useCallback } from "react"
 import {
   Search,
   UserPlus,
-  MoreHorizontal,
-  Pencil,
-  UserCheck,
-  UserX,
   AlertCircle,
   Users,
   Loader2,
   Phone,
-  Mail,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,74 +20,81 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   getStudents,
   createStudent,
-  updateStudent,
-  setStudentStatus,
+  getStudentDetails,
 } from "@/services/api"
-import type { Student } from "@/types"
-
-type FilterTab = "all" | "active" | "inactive"
+import type { Student, StudentDetailsResponse, StudentSessionDetail } from "@/types"
+import { format } from "date-fns"
 
 interface StudentFormData {
   full_name: string
-  email: string
   phone: string
+  age: string
+  student_type: "studying" | "working" | ""
+  institution_name: string
+  company_name: string
 }
 
-const EMPTY_FORM: StudentFormData = { full_name: "", email: "", phone: "" }
+const EMPTY_FORM: StudentFormData = {
+  full_name: "",
+  phone: "",
+  age: "",
+  student_type: "",
+  institution_name: "",
+  company_name: "",
+}
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<FilterTab>("all")
   const [search, setSearch] = useState("")
 
   const [addOpen, setAddOpen] = useState(false)
-  const [editStudent, setEditStudent] = useState<Student | null>(null)
   const [formData, setFormData] = useState<StudentFormData>(EMPTY_FORM)
   const [formLoading, setFormLoading] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
-  const [toggleTarget, setToggleTarget] = useState<Student | null>(null)
-  const [toggleLoading, setToggleLoading] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [detailsLoading, setDetailsLoading] = useState(false)
+  const [detailsError, setDetailsError] = useState<string | null>(null)
+  const [detailsData, setDetailsData] = useState<StudentDetailsResponse | null>(null)
+
+  const formatSessionDate = (value: string | null | undefined) => {
+    if (!value) return "-"
+    const dateObj = new Date(value.includes("T") ? value : `${value}T00:00:00`)
+    if (Number.isNaN(dateObj.getTime())) return "-"
+    return format(dateObj, "MMM d, yyyy")
+  }
+
 
   const fetchStudents = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const active = filter === "all" ? undefined : filter === "active"
-      const data = await getStudents(active)
+      const data = await getStudents()
       setStudents(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load students")
     } finally {
       setLoading(false)
     }
-  }, [filter])
+  }, [])
 
   useEffect(() => {
     fetchStudents()
@@ -102,8 +104,9 @@ export default function StudentsPage() {
     const q = search.toLowerCase()
     return (
       s.full_name.toLowerCase().includes(q) ||
-      (s.email?.toLowerCase().includes(q) ?? false) ||
-      (s.phone?.includes(q) ?? false)
+      (s.phone?.includes(q) ?? false) ||
+      (s.institution_name?.toLowerCase().includes(q) ?? false) ||
+      (s.company_name?.toLowerCase().includes(q) ?? false)
     )
   })
 
@@ -113,19 +116,45 @@ export default function StudentsPage() {
     setAddOpen(true)
   }
 
-  function openEdit(student: Student) {
-    setFormData({
-      full_name: student.full_name,
-      email: student.email ?? "",
-      phone: student.phone ?? "",
-    })
-    setFormError(null)
-    setEditStudent(student)
+  async function openDetails(student: Student) {
+    setDetailsOpen(true)
+    setDetailsLoading(true)
+    setDetailsError(null)
+    try {
+      const data = await getStudentDetails(student.id)
+      setDetailsData(data)
+    } catch (err) {
+      setDetailsError(err instanceof Error ? err.message : "Failed to load student details")
+    } finally {
+      setDetailsLoading(false)
+    }
   }
+
 
   async function handleSave() {
     if (!formData.full_name.trim()) {
       setFormError("Full name is required")
+      return
+    }
+    if (!formData.phone.trim()) {
+      setFormError("Phone number is required")
+      return
+    }
+    const parsedAge = Number(formData.age)
+    if (!Number.isFinite(parsedAge) || parsedAge <= 0) {
+      setFormError("Age must be a positive number")
+      return
+    }
+    if (!formData.student_type) {
+      setFormError("Student type is required")
+      return
+    }
+    if (formData.student_type === "studying" && !formData.institution_name.trim()) {
+      setFormError("School/College name is required")
+      return
+    }
+    if (formData.student_type === "working" && !formData.company_name.trim()) {
+      setFormError("Company name is required")
       return
     }
     setFormLoading(true)
@@ -133,35 +162,25 @@ export default function StudentsPage() {
     try {
       const payload = {
         full_name: formData.full_name.trim(),
-        email: formData.email.trim() || undefined,
-        phone: formData.phone.trim() || undefined,
+        phone: formData.phone.trim(),
+        age: parsedAge,
+        student_type: formData.student_type as "studying" | "working",
+        institution_name:
+          formData.student_type === "studying"
+            ? formData.institution_name.trim()
+            : undefined,
+        company_name:
+          formData.student_type === "working"
+            ? formData.company_name.trim()
+            : undefined,
       }
-      if (editStudent) {
-        await updateStudent(editStudent.id, payload)
-      } else {
-        await createStudent(payload)
-      }
+      await createStudent(payload)
       setAddOpen(false)
-      setEditStudent(null)
       fetchStudents()
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to save student")
     } finally {
       setFormLoading(false)
-    }
-  }
-
-  async function handleToggleStatus() {
-    if (!toggleTarget) return
-    setToggleLoading(true)
-    try {
-      await setStudentStatus(toggleTarget.id, !toggleTarget.active)
-      setToggleTarget(null)
-      fetchStudents()
-    } catch {
-      // ignore
-    } finally {
-      setToggleLoading(false)
     }
   }
 
@@ -191,19 +210,12 @@ export default function StudentsPage() {
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
               <Input
-                placeholder="Search by name, email or phone…"
+                placeholder="Search by name or phone…"
                 className="pl-9"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterTab)}>
-              <TabsList>
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="active">Active</TabsTrigger>
-                <TabsTrigger value="inactive">Inactive</TabsTrigger>
-              </TabsList>
-            </Tabs>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -242,7 +254,8 @@ export default function StudentsPage() {
               {filtered.map((student) => (
                 <div
                   key={student.id}
-                  className="flex items-center gap-4 px-6 py-4 hover:bg-muted/30 transition-colors"
+                  className="flex items-center gap-4 px-6 py-4 hover:bg-muted/30 transition-colors cursor-pointer"
+                  onClick={() => openDetails(student)}
                 >
                   <div className="flex items-center justify-center size-10 rounded-full bg-primary/10 shrink-0 text-sm font-semibold text-primary">
                     {student.full_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
@@ -258,49 +271,32 @@ export default function StudentsPage() {
                       </Badge>
                     </div>
                     <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                      {student.email && (
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Mail className="size-3" />
-                          {student.email}
-                        </span>
-                      )}
                       {student.phone && (
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
                           <Phone className="size-3" />
                           {student.phone}
                         </span>
                       )}
+                      <span className="text-xs text-muted-foreground">
+                        Age {student.age ?? "-"}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {student.student_type
+                          ? (student.student_type === "studying" ? "Studying" : "Working")
+                          : "-"}
+                      </span>
+                      {student.student_type === "studying" && student.institution_name && (
+                        <span className="text-xs text-muted-foreground">
+                          {student.institution_name}
+                        </span>
+                      )}
+                      {student.student_type === "working" && student.company_name && (
+                        <span className="text-xs text-muted-foreground">
+                          {student.company_name}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon-sm">
-                        <MoreHorizontal className="size-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openEdit(student)}>
-                        <Pencil className="size-4" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setToggleTarget(student)}
-                        className={student.active ? "text-destructive focus:text-destructive" : ""}
-                      >
-                        {student.active ? (
-                          <>
-                            <UserX className="size-4" />
-                            Deactivate
-                          </>
-                        ) : (
-                          <>
-                            <UserCheck className="size-4" />
-                            Activate
-                          </>
-                        )}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </div>
               ))}
             </div>
@@ -310,17 +306,19 @@ export default function StudentsPage() {
 
       {/* Add / Edit Dialog */}
       <Dialog
-        open={addOpen || editStudent !== null}
+        open={addOpen}
         onOpenChange={(open) => {
           if (!open) {
             setAddOpen(false)
-            setEditStudent(null)
           }
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editStudent ? "Edit Student" : "Add Student"}</DialogTitle>
+            <DialogTitle>Add Student</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Enter the student details to save the record.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
@@ -333,17 +331,7 @@ export default function StudentsPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">Email (optional)</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="priya@example.com"
-                value={formData.email}
-                onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone (optional)</Label>
+              <Label htmlFor="phone">Phone *</Label>
               <Input
                 id="phone"
                 type="tel"
@@ -352,6 +340,65 @@ export default function StudentsPage() {
                 onChange={(e) => setFormData((p) => ({ ...p, phone: e.target.value }))}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="age">Age *</Label>
+              <Input
+                id="age"
+                type="number"
+                min={1}
+                placeholder="18"
+                value={formData.age}
+                onChange={(e) => setFormData((p) => ({ ...p, age: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Student Type *</Label>
+              <Select
+                value={formData.student_type}
+                onValueChange={(value) =>
+                  setFormData((p) => ({
+                    ...p,
+                    student_type: value as "studying" | "working",
+                    institution_name: value === "studying" ? p.institution_name : "",
+                    company_name: value === "working" ? p.company_name : "",
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="studying">Studying</SelectItem>
+                  <SelectItem value="working">Working</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {formData.student_type === "studying" && (
+              <div className="space-y-2">
+                <Label htmlFor="institution_name">School/College Name *</Label>
+                <Input
+                  id="institution_name"
+                  placeholder="e.g. XYZ College"
+                  value={formData.institution_name}
+                  onChange={(e) =>
+                    setFormData((p) => ({ ...p, institution_name: e.target.value }))
+                  }
+                />
+              </div>
+            )}
+            {formData.student_type === "working" && (
+              <div className="space-y-2">
+                <Label htmlFor="company_name">Company Name *</Label>
+                <Input
+                  id="company_name"
+                  placeholder="e.g. ABC Pvt Ltd"
+                  value={formData.company_name}
+                  onChange={(e) =>
+                    setFormData((p) => ({ ...p, company_name: e.target.value }))
+                  }
+                />
+              </div>
+            )}
             {formError && (
               <p className="text-sm text-destructive">{formError}</p>
             )}
@@ -366,38 +413,112 @@ export default function StudentsPage() {
             </Button>
             <Button onClick={handleSave} disabled={formLoading}>
               {formLoading && <Loader2 className="size-4 animate-spin" />}
-              {editStudent ? "Save Changes" : "Add Student"}
+              Add Student
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Toggle Status Confirmation */}
-      <AlertDialog open={toggleTarget !== null} onOpenChange={(o) => !o && setToggleTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {toggleTarget?.active ? "Deactivate Student" : "Activate Student"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {toggleTarget?.active
-                ? `${toggleTarget?.full_name} will no longer appear in attendance checklists.`
-                : `${toggleTarget?.full_name} will appear in attendance checklists again.`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={toggleLoading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleToggleStatus}
-              disabled={toggleLoading}
-              className={toggleTarget?.active ? "bg-destructive hover:bg-destructive/90" : ""}
-            >
-              {toggleLoading && <Loader2 className="size-4 animate-spin" />}
-              Confirm
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <Dialog
+        open={detailsOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailsOpen(false)
+            setDetailsData(null)
+            setDetailsError(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Student Details</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              View the student profile and class attendance.
+            </DialogDescription>
+          </DialogHeader>
+          {detailsLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-6 w-full" />
+              ))}
+            </div>
+          ) : detailsError ? (
+            <p className="text-sm text-destructive">{detailsError}</p>
+          ) : detailsData ? (
+            <div className="space-y-6">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs text-muted-foreground">Name</p>
+                  <p className="text-sm font-medium text-foreground">{detailsData.student.full_name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Phone</p>
+                  <p className="text-sm font-medium text-foreground">{detailsData.student.phone ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Age</p>
+                  <p className="text-sm font-medium text-foreground">{detailsData.student.age ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Type</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {detailsData.student.student_type
+                      ? (detailsData.student.student_type === "studying" ? "Studying" : "Working")
+                      : "-"}
+                  </p>
+                </div>
+                {detailsData.student.student_type === "studying" && detailsData.student.institution_name && (
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-muted-foreground">School/College</p>
+                    <p className="text-sm font-medium text-foreground">{detailsData.student.institution_name}</p>
+                  </div>
+                )}
+                {detailsData.student.student_type === "working" && detailsData.student.company_name && (
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-muted-foreground">Company</p>
+                    <p className="text-sm font-medium text-foreground">{detailsData.student.company_name}</p>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-foreground mb-2">Class Attendance</p>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Class</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Attended On</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detailsData.sessions.map((row: StudentSessionDetail) => (
+                      <TableRow key={row.class_id ?? row.class_name ?? "class"}>
+                        <TableCell>{row.class_name ?? "Class"}</TableCell>
+                        <TableCell>
+                          {row.status === "present" ? (
+                            <span className="text-emerald-600 font-medium">Attended</span>
+                          ) : (
+                            <span className="text-red-600 font-medium">Not Attended</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {row.status === "present" ? formatSessionDate(row.attended_on) : "-"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailsOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

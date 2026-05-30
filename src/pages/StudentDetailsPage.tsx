@@ -1,0 +1,309 @@
+import { useEffect, useMemo, useState } from "react"
+import { useNavigate, useParams } from "react-router-dom"
+import { ArrowLeft, Loader2, Save, AlertCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { getStudentDetails, updateStudent } from "@/services/api"
+import type { Student, StudentDetailsResponse, StudentSessionDetail } from "@/types"
+import { format } from "date-fns"
+
+interface StudentFormData {
+  full_name: string
+  phone: string
+  age: string
+  student_type: "studying" | "working" | ""
+  institution_name: string
+  company_name: string
+}
+
+const EMPTY_FORM: StudentFormData = {
+  full_name: "",
+  phone: "",
+  age: "",
+  student_type: "",
+  institution_name: "",
+  company_name: "",
+}
+
+export default function StudentDetailsPage() {
+  const navigate = useNavigate()
+  const { id } = useParams()
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [details, setDetails] = useState<StudentDetailsResponse | null>(null)
+  const [formData, setFormData] = useState<StudentFormData>(EMPTY_FORM)
+
+  useEffect(() => {
+    if (!id) return
+    setLoading(true)
+    setError(null)
+    getStudentDetails(id)
+      .then((data) => {
+        setDetails(data)
+        setFormData({
+          full_name: data.student.full_name ?? "",
+          phone: data.student.phone ?? "",
+          age: data.student.age ? String(data.student.age) : "",
+          student_type: data.student.student_type ?? "",
+          institution_name: data.student.institution_name ?? "",
+          company_name: data.student.company_name ?? "",
+        })
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load student details")
+      })
+      .finally(() => setLoading(false))
+  }, [id])
+
+  const attendanceRows = useMemo(() => {
+    return details?.sessions ?? []
+  }, [details])
+
+  const formatDate = (value: string | null | undefined) => {
+    if (!value) return "-"
+    const dateObj = new Date(value.includes("T") ? value : `${value}T00:00:00`)
+    if (Number.isNaN(dateObj.getTime())) return "-"
+    return format(dateObj, "MMM d, yyyy")
+  }
+
+  const handleSave = async () => {
+    if (!id) return
+    if (!formData.full_name.trim()) {
+      setFormError("Name is required")
+      return
+    }
+    if (!formData.phone.trim()) {
+      setFormError("Phone number is required")
+      return
+    }
+    const parsedAge = Number(formData.age)
+    if (!Number.isFinite(parsedAge) || parsedAge <= 0) {
+      setFormError("Age must be a positive number")
+      return
+    }
+    if (!formData.student_type) {
+      setFormError("Student type is required")
+      return
+    }
+    if (formData.student_type === "studying" && !formData.institution_name.trim()) {
+      setFormError("School/College name is required")
+      return
+    }
+    if (formData.student_type === "working" && !formData.company_name.trim()) {
+      setFormError("Company name is required")
+      return
+    }
+    setSaving(true)
+    setFormError(null)
+    try {
+      const payload: Partial<Student> = {
+        full_name: formData.full_name.trim(),
+        phone: formData.phone.trim(),
+        age: parsedAge,
+        student_type: formData.student_type as "studying" | "working",
+        institution_name:
+          formData.student_type === "studying"
+            ? formData.institution_name.trim()
+            : undefined,
+        company_name:
+          formData.student_type === "working"
+            ? formData.company_name.trim()
+            : undefined,
+      }
+      const updated = await updateStudent(id, payload)
+      setDetails((prev) =>
+        prev ? { ...prev, student: updated } : prev
+      )
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Failed to save student")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Student Details</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            View and update student profile and attendance
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => navigate("/students")}> 
+          <ArrowLeft className="size-4" />
+          Back to Students
+        </Button>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-lg px-4 py-3">
+          <AlertCircle className="size-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Student Profile</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-6 w-full rounded-md bg-muted" />
+              ))}
+            </div>
+          ) : details ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="full_name">Name *</Label>
+                <Input
+                  id="full_name"
+                  value={formData.full_name}
+                  onChange={(e) => setFormData((p) => ({ ...p, full_name: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone *</Label>
+                <Input
+                  id="phone"
+                  value={formData.phone}
+                  onChange={(e) => setFormData((p) => ({ ...p, phone: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="age">Age *</Label>
+                <Input
+                  id="age"
+                  type="number"
+                  min={1}
+                  value={formData.age}
+                  onChange={(e) => setFormData((p) => ({ ...p, age: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Student Type *</Label>
+                <Select
+                  value={formData.student_type}
+                  onValueChange={(value) =>
+                    setFormData((p) => ({
+                      ...p,
+                      student_type: value as "studying" | "working",
+                      institution_name: value === "studying" ? p.institution_name : "",
+                      company_name: value === "working" ? p.company_name : "",
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="studying">Studying</SelectItem>
+                    <SelectItem value="working">Working</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {formData.student_type === "studying" && (
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="institution_name">School/College Name *</Label>
+                  <Input
+                    id="institution_name"
+                    value={formData.institution_name}
+                    onChange={(e) =>
+                      setFormData((p) => ({ ...p, institution_name: e.target.value }))
+                    }
+                  />
+                </div>
+              )}
+              {formData.student_type === "working" && (
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="company_name">Company Name *</Label>
+                  <Input
+                    id="company_name"
+                    value={formData.company_name}
+                    onChange={(e) =>
+                      setFormData((p) => ({ ...p, company_name: e.target.value }))
+                    }
+                  />
+                </div>
+              )}
+              {formError && (
+                <p className="text-sm text-destructive sm:col-span-2">{formError}</p>
+              )}
+              <div className="sm:col-span-2 flex justify-end">
+                <Button onClick={handleSave} disabled={saving}>
+                  {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                  {saving ? "Saving…" : "Save Changes"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Class Attendance</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-8 w-full rounded-md bg-muted" />
+              ))}
+            </div>
+          ) : attendanceRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No sessions recorded yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Class</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Attended On</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {attendanceRows.map((row: StudentSessionDetail) => (
+                  <TableRow key={row.class_id ?? row.class_name ?? "class"}>
+                    <TableCell>{row.class_name ?? "Class"}</TableCell>
+                    <TableCell>
+                      {row.status === "present" ? (
+                        <span className="text-emerald-600 font-medium">Attended</span>
+                      ) : (
+                        <span className="text-red-600 font-medium">Not Attended</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {row.status === "present" ? formatDate(row.attended_on) : "-"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

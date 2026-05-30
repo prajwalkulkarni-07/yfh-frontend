@@ -4,6 +4,7 @@ import AppLayout from "@/components/AppLayout"
 import LoginPage from "@/pages/LoginPage"
 import DashboardPage from "@/pages/DashboardPage"
 import StudentsPage from "@/pages/StudentsPage"
+import StudentDetailsPage from "@/pages/StudentDetailsPage"
 import AttendancePage from "@/pages/AttendancePage"
 import ReportsPage from "@/pages/ReportsPage"
 
@@ -21,6 +22,7 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/students" element={<StudentsPage />} />
+            <Route path="/students/:id" element={<StudentDetailsPage />} />
             <Route path="/attendance" element={<AttendancePage />} />
             <Route path="/reports" element={<ReportsPage />} />
           </Route>

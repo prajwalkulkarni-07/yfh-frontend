@@ -3,20 +3,19 @@ import { useSearchParams } from "react-router-dom"
 import {
   CalendarDays,
   CheckCircle2,
-  XCircle,
   Loader2,
   AlertCircle,
   Save,
-  CheckCheck,
-  Ban,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   getStudents,
   getSessions,
@@ -24,7 +23,7 @@ import {
   getAttendance,
   createSession,
 } from "@/services/api"
-import type { Student } from "@/types"
+import type { AttendanceSession, Student } from "@/types"
 import { format } from "date-fns"
 
 type AttendanceStatus = "present" | "absent"
@@ -42,13 +41,27 @@ export default function AttendancePage() {
     ? queryDate
     : fallbackDate
 
+  const CLASS_ROTATION_START = "2026-05-31"
+  const CLASS_ROTATION_START_INDEX = 6
+  const CLASS_ROTATION = [
+    "Self Management",
+    "Yoga",
+    "Relationship",
+    "Karma",
+    "Diet For Happiness",
+    "Habits For Happiness",
+    "The Perfect Knowledge",
+    "The Real Freedom",
+  ]
+  const MS_PER_DAY = 24 * 60 * 60 * 1000
+
   const [selectedDate, setSelectedDate] = useState(defaultDate)
   const [rows, setRows] = useState<AttendanceRow[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
-  const [sessions, setSessions] = useState<{ id: string; class_date: string }[]>([])
+  const [sessions, setSessions] = useState<AttendanceSession[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(true)
 
   const loadSessionList = useCallback(async () => {
@@ -72,12 +85,12 @@ export default function AttendancePage() {
     setError(null)
     setSaved(false)
     try {
-      const [activeStudents, existingRecords] = await Promise.all([
-        getStudents(true),
+      const [allStudents, existingRecords] = await Promise.all([
+        getStudents(),
         getAttendance({ class_date: date }).catch(() => []),
       ])
 
-      const newRows: AttendanceRow[] = activeStudents.map((student) => {
+      const newRows: AttendanceRow[] = allStudents.map((student) => {
         const existing = existingRecords.find((r) => r.student_id === student.id)
         return {
           student,
@@ -96,18 +109,14 @@ export default function AttendancePage() {
     loadAttendance(selectedDate)
   }, [selectedDate, loadAttendance])
 
-  function toggle(studentId: string) {
+  function setStatus(studentId: string, status: AttendanceStatus) {
     setRows((prev) =>
       prev.map((r) =>
         r.student.id === studentId
-          ? { ...r, status: r.status === "present" ? "absent" : "present" }
+          ? { ...r, status }
           : r
       )
     )
-  }
-
-  function markAll(status: AttendanceStatus) {
-    setRows((prev) => prev.map((r) => ({ ...r, status })))
   }
 
   async function handleSave() {
@@ -141,6 +150,54 @@ export default function AttendancePage() {
     return Number.isNaN(dateObj.getTime()) ? null : dateObj
   }
 
+  const getSessionNameForDate = (value: string | null | undefined) => {
+    if (!value) return null
+    const dateOnly = value.split("T")[0]
+    const dateObj = new Date(`${dateOnly}T00:00:00Z`)
+    if (Number.isNaN(dateObj.getTime()) || dateObj.getUTCDay() !== 0) return null
+    const start = new Date(`${CLASS_ROTATION_START}T00:00:00Z`)
+    const diffDays = Math.floor((dateObj.getTime() - start.getTime()) / MS_PER_DAY)
+    if (diffDays % 7 !== 0) return null
+    const weeksOffset = diffDays / 7
+    const index =
+      ((weeksOffset + CLASS_ROTATION_START_INDEX) % CLASS_ROTATION.length +
+        CLASS_ROTATION.length) %
+      CLASS_ROTATION.length
+    return CLASS_ROTATION[index]
+  }
+
+  const sessionName = getSessionNameForDate(selectedDate)
+  const selectedDateObj = toSessionDate(selectedDate) ?? new Date()
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const toDateKey = (date: Date) => format(date, "yyyy-MM-dd")
+  const getNextSunday = (date: Date) => {
+    const result = new Date(date)
+    const day = result.getDay()
+    const diff = (7 - day) % 7
+    result.setDate(result.getDate() + diff)
+    result.setHours(0, 0, 0, 0)
+    return result
+  }
+
+  const generateUpcomingSessions = (count: number) => {
+    const start = new Date(today)
+    start.setDate(start.getDate() + 1)
+    let cursor = getNextSunday(start)
+    const upcoming: AttendanceSession[] = []
+    while (upcoming.length < count) {
+      const class_date = toDateKey(cursor)
+      upcoming.push({
+        id: `future-${class_date}`,
+        class_date,
+        class_name: getSessionNameForDate(class_date) ?? undefined,
+      })
+      cursor = getNextSunday(new Date(cursor.getTime() + 24 * 60 * 60 * 1000))
+    }
+    return upcoming
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -158,13 +215,41 @@ export default function AttendancePage() {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="space-y-1.5">
                   <Label htmlFor="session-date">Session Date</Label>
-                  <Input
-                    id="session-date"
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-44"
-                  />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          id="session-date"
+                          variant="outline"
+                          className="w-52 justify-between border-border/60 bg-muted/40 font-medium"
+                        >
+                          <span>{format(selectedDateObj, "MMM d, yyyy")}</span>
+                          <CalendarDays className="size-4 text-muted-foreground" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={selectedDateObj}
+                          disabled={(date) => date > today}
+                          onSelect={(date) => {
+                            if (!date) return
+                            setSelectedDate(format(date, "yyyy-MM-dd"))
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    {sessionName ? (
+                      <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                        Session: {sessionName}
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground">
+                        No session scheduled
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {!loading && rows.length > 0 && (
                   <div className="flex items-center gap-2">
@@ -180,27 +265,6 @@ export default function AttendancePage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {!loading && rows.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => markAll("present")}
-                  >
-                    <CheckCheck className="size-4" />
-                    Mark All Present
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => markAll("absent")}
-                  >
-                    <Ban className="size-4" />
-                    Mark All Absent
-                  </Button>
-                </div>
-              )}
-
               {saveError && (
                 <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
                   <AlertCircle className="size-4 shrink-0" />
@@ -224,17 +288,16 @@ export default function AttendancePage() {
               ) : rows.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <CalendarDays className="size-12 text-muted-foreground/30 mb-4" />
-                  <p className="text-sm font-medium text-foreground">No active students</p>
+                  <p className="text-sm font-medium text-foreground">No students found</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Add active students to mark attendance.
+                    Add students to mark attendance.
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="max-h-[28rem] overflow-y-auto pr-1 space-y-2">
                   {rows.map(({ student, status }) => (
-                    <button
+                    <div
                       key={student.id}
-                      onClick={() => toggle(student.id)}
                       className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg border transition-all text-left ${
                         status === "present"
                           ? "border-primary/30 bg-primary/5 hover:bg-primary/10"
@@ -247,40 +310,88 @@ export default function AttendancePage() {
                       <span className="flex-1 text-sm font-medium text-foreground truncate">
                         {student.full_name}
                       </span>
-                      {status === "present" ? (
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
-                          <CheckCircle2 className="size-4" />
-                          Present
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                          <XCircle className="size-4" />
-                          Absent
-                        </div>
+                      {!student.active && (
+                        <span className="text-[0.65rem] uppercase tracking-wide text-muted-foreground border border-border/60 px-2 py-0.5 rounded-full">
+                          Inactive
+                        </span>
                       )}
-                    </button>
+                      <div className="flex items-center gap-3">
+                        <Switch
+                          checked={status === "present"}
+                          onCheckedChange={(checked) =>
+                            setStatus(student.id, checked ? "present" : "absent")
+                          }
+                          className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-red-500"
+                          aria-label={`Mark ${student.full_name} as ${status === "present" ? "present" : "absent"}`}
+                        />
+                        <span
+                          className={`text-xs font-medium ${
+                            status === "present"
+                              ? "text-emerald-600"
+                              : "text-red-600"
+                          }`}
+                        >
+                          {status === "present" ? "Present" : "Absent"}
+                        </span>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
-
-              {rows.length > 0 && (
-                <div className="flex justify-end pt-2">
-                  <Button onClick={handleSave} disabled={saving}>
-                    {saving ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Save className="size-4" />
-                    )}
-                    {saving ? "Saving…" : "Save Attendance"}
-                  </Button>
-                </div>
-              )}
             </CardContent>
+            {rows.length > 0 && (
+              <div className="flex justify-end px-6 pb-6">
+                <Button onClick={handleSave} disabled={saving}>
+                  {saving ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Save className="size-4" />
+                  )}
+                  {saving ? "Saving…" : "Save Attendance"}
+                </Button>
+              </div>
+            )}
           </Card>
         </div>
 
-        {/* Past sessions sidebar */}
-        <div>
+        {/* Sessions sidebar */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Upcoming Sessions</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y">
+                {generateUpcomingSessions(4).map((session) => {
+                  const d = toSessionDate(session.class_date)
+                  if (!d) return null
+                  const sessionLabel = session.class_name ?? getSessionNameForDate(session.class_date)
+                  const dow = format(d, "EEEE")
+                  return (
+                    <button
+                      key={session.id}
+                      disabled
+                      title="Attendance cannot be taken for a future date"
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left opacity-60 cursor-not-allowed"
+                    >
+                      <div className="flex items-center justify-center size-8 rounded-md shrink-0 bg-muted">
+                        <CalendarDays className="size-4 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          {format(d, "MMM d, yyyy")}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {dow}{sessionLabel ? ` · ${sessionLabel}` : ""}
+                        </p>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Past Sessions</CardTitle>
@@ -298,10 +409,14 @@ export default function AttendancePage() {
                   <p className="text-xs text-muted-foreground">No sessions recorded yet</p>
                 </div>
               ) : (
-                <div className="divide-y max-h-96 overflow-y-auto">
-                  {sessions.map((session) => {
+                <div className="divide-y">
+                  {sessions.filter((session) => {
+                    const d = toSessionDate(session.class_date)
+                    return d && d <= today
+                  }).slice(0, 4).map((session) => {
                     const d = toSessionDate(session.class_date)
                     if (!d) return null
+                    const sessionLabel = session.class_name ?? getSessionNameForDate(session.class_date)
                     const isSelected = session.class_date === selectedDate
                     const dow = format(d, "EEEE")
                     return (
@@ -319,13 +434,10 @@ export default function AttendancePage() {
                           <p className={`text-sm font-medium ${isSelected ? "text-primary" : "text-foreground"}`}>
                             {format(d, "MMM d, yyyy")}
                           </p>
-                          <p className="text-xs text-muted-foreground">{dow}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {dow}{sessionLabel ? ` · ${sessionLabel}` : ""}
+                          </p>
                         </div>
-                        {(dow === "Friday" || dow === "Saturday") && (
-                          <Badge variant="secondary" className="ml-auto text-xs">
-                            Class
-                          </Badge>
-                        )}
                       </button>
                     )
                   })}

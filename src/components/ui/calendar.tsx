@@ -186,6 +186,12 @@ function CalendarDayButton({
   ...props
 }: React.ComponentProps<typeof DayButton>) {
   const defaultClassNames = getDefaultClassNames()
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const isFuture = day.date > today
+  const tooltip = isFuture
+    ? "Attendance cannot be taken for a future date"
+    : undefined
 
   const ref = React.useRef<HTMLButtonElement>(null)
   React.useEffect(() => {
@@ -198,6 +204,7 @@ function CalendarDayButton({
       variant="ghost"
       size="icon"
       data-day={day.date.toLocaleDateString()}
+      title={modifiers.disabled && isFuture ? tooltip : undefined}
       data-selected-single={
         modifiers.selected &&
         !modifiers.range_start &&
