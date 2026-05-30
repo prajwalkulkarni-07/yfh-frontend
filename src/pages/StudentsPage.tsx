@@ -406,7 +406,7 @@ export default function StudentsPage() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => { setAddOpen(false); setEditStudent(null) }}
+              onClick={() => { setAddOpen(false) }}
               disabled={formLoading}
             >
               Cancel
