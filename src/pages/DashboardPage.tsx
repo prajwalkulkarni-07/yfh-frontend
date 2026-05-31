@@ -20,6 +20,11 @@ interface Stats {
   monthlyAttendanceRate: number | null
 }
 
+interface SessionWithDate {
+  dateKey: string
+  class_name?: string | null
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 const HERO_IMAGE_SRC = "/diety%20pic.png"
 
@@ -98,10 +103,12 @@ export default function DashboardPage() {
         const todayKey = format(new Date(), "yyyy-MM-dd")
         const lastSession = sessions
           .map((session) => ({
-            ...session,
+            class_name: session.class_name,
             dateKey: normalizeDateString(session.class_date),
           }))
-          .filter((session) => session.dateKey && session.dateKey <= todayKey)
+          .filter((session): session is SessionWithDate =>
+            Boolean(session.dateKey && session.dateKey <= todayKey)
+          )
           .sort((a, b) => b.dateKey.localeCompare(a.dateKey))[0] ?? null
         try {
           const today = new Date()
