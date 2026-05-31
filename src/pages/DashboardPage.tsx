@@ -1,27 +1,27 @@
 import { useEffect, useState } from "react"
-import { useNavigate } from "react-router-dom"
 import {
   Users,
   UserCheck,
   CalendarDays,
   TrendingUp,
-  CalendarCheck,
-  UserPlus,
   AlertCircle,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getStudents, getSessions, getAttendanceSummary } from "@/services/api"
-import { format, subDays } from "date-fns"
+import { format } from "date-fns"
+import { BHAGAVAD_GITA_QUOTES } from "@/data/bhagavadGitaQuotes"
 
 interface Stats {
   totalStudents: number
   activeStudents: number
   lastSessionDate: string | null
-  attendanceRate: number | null
+  lastSessionName: string | null
+  monthlyAttendanceRate: number | null
 }
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+const HERO_IMAGE_SRC = "/diety%20pic.png"
 
 function StatCard({
   title,
@@ -65,16 +65,21 @@ function StatCard({
 }
 
 export default function DashboardPage() {
-  const navigate = useNavigate()
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [recentSessions, setRecentSessions] = useState<{ id: string; class_date: string }[]>([])
+
+  const normalizeDateString = (value: string | null | undefined) => {
+    if (!value) return null
+    return value.split("T")[0].split(" ")[0]
+  }
 
   const toSessionDate = (value: string | null | undefined) => {
-    if (!value) return null
-    const dateOnly = value.split("T")[0]
-    const dateObj = new Date(`${dateOnly}T00:00:00`)
+    const dateOnly = normalizeDateString(value)
+    if (!dateOnly) return null
+    const [year, month, day] = dateOnly.split("-").map(Number)
+    if (!year || !month || !day) return null
+    const dateObj = new Date(year, month - 1, day)
     return Number.isNaN(dateObj.getTime()) ? null : dateObj
   }
 
@@ -86,38 +91,47 @@ export default function DashboardPage() {
         const [allStudents, activeStudents, sessions] = await Promise.all([
           getStudents(),
           getStudents(true),
-          getSessions(
-            format(subDays(new Date(), 30), "yyyy-MM-dd"),
-            format(new Date(), "yyyy-MM-dd")
-          ),
+          getSessions(),
         ])
 
-        const lastSession = sessions.length > 0 ? sessions[sessions.length - 1] : null
-        setRecentSessions(sessions.slice(-5).reverse())
-
-        let attendanceRate: number | null = null
-        if (sessions.length > 0 && activeStudents.length > 0) {
-          try {
-            const summary = await getAttendanceSummary(
-              format(subDays(new Date(), 30), "yyyy-MM-dd"),
-              format(new Date(), "yyyy-MM-dd")
-            )
-            if (summary.length > 0) {
-              const avg =
-                summary.reduce((acc, s) => acc + (Number(s.attendance_percentage) || 0), 0) /
-                summary.length
-              attendanceRate = Math.round(avg)
-            }
-          } catch {
-            // summary optional
+        let monthlyAttendanceRate: number | null = null
+        const todayKey = format(new Date(), "yyyy-MM-dd")
+        const lastSession = sessions
+          .map((session) => ({
+            ...session,
+            dateKey: normalizeDateString(session.class_date),
+          }))
+          .filter((session) => session.dateKey && session.dateKey <= todayKey)
+          .sort((a, b) => b.dateKey.localeCompare(a.dateKey))[0] ?? null
+        try {
+          const today = new Date()
+          const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+          const summary = await getAttendanceSummary(
+            format(monthStart, "yyyy-MM-dd"),
+            format(today, "yyyy-MM-dd")
+          )
+          const totals = summary.reduce(
+            (acc, item) => {
+              acc.present += item.present
+              acc.absent += item.absent
+              return acc
+            },
+            { present: 0, absent: 0 }
+          )
+          const totalSessions = totals.present + totals.absent
+          if (totalSessions > 0) {
+            monthlyAttendanceRate = Math.round((totals.present / totalSessions) * 100)
           }
+        } catch {
+          // summary optional
         }
 
         setStats({
           totalStudents: allStudents.length,
           activeStudents: activeStudents.length,
-          lastSessionDate: lastSession?.class_date ?? null,
-          attendanceRate,
+          lastSessionDate: lastSession?.dateKey ?? null,
+          lastSessionName: lastSession?.class_name ?? null,
+          monthlyAttendanceRate,
         })
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load dashboard data")
@@ -128,21 +142,57 @@ export default function DashboardPage() {
     load()
   }, [])
 
+  const quoteIndex =
+    BHAGAVAD_GITA_QUOTES.length > 0
+      ? Math.floor(new Date().setHours(0, 0, 0, 0) / MS_PER_DAY) %
+        BHAGAVAD_GITA_QUOTES.length
+      : 0
+  const dailyQuote =
+    BHAGAVAD_GITA_QUOTES.length > 0 ? BHAGAVAD_GITA_QUOTES[quoteIndex] : null
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Welcome back. Here's an overview of your classes.
-        </p>
-      </div>
-
       {error && (
         <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-lg px-4 py-3">
           <AlertCircle className="size-4 shrink-0" />
           {error}
         </div>
       )}
+
+      <Card>
+        <CardContent className="pt-6">
+          <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+            <div className="overflow-hidden rounded-xl border border-border/60 bg-muted/20">
+              <img
+                src={HERO_IMAGE_SRC}
+                alt="Deity photo"
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+            </div>
+            <div className="flex flex-col justify-center space-y-3">
+              <div className="text-base font-semibold text-foreground">Daily Wisdom</div>
+              {loading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-32" />
+                </div>
+              ) : dailyQuote ? (
+                <>
+                  <p className="text-base italic text-foreground">"{dailyQuote.text}"</p>
+                  {dailyQuote.source ? (
+                    <p className="text-xs text-muted-foreground">{dailyQuote.source}</p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Add your Bhagavad Gita quotes to start the daily rotation.
+                </p>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -174,86 +224,19 @@ export default function DashboardPage() {
           description={
             stats?.lastSessionDate
               ? (toSessionDate(stats.lastSessionDate)
-                ? format(toSessionDate(stats.lastSessionDate) as Date, "EEEE")
+                ? `${format(toSessionDate(stats.lastSessionDate) as Date, "EEEE")}${stats.lastSessionName ? ` · ${stats.lastSessionName}` : ""}`
                 : "No sessions yet")
               : "No sessions yet"
           }
         />
         <StatCard
-          title="Attendance Rate"
-          value={stats?.attendanceRate != null ? `${stats.attendanceRate}%` : "—"}
+          title={`${format(new Date(), "MMMM")} Attendance`}
+          value={stats?.monthlyAttendanceRate != null ? `${stats.monthlyAttendanceRate}%` : "—"}
           icon={TrendingUp}
           loading={loading}
-          description="Last 30 days average"
+          description="Average for current month"
         />
       </div>
-
-      <div className="flex flex-wrap gap-3">
-        <Button onClick={() => navigate("/attendance")} size="lg">
-          <CalendarCheck />
-          Mark Attendance
-        </Button>
-        <Button variant="outline" onClick={() => navigate("/students")} size="lg">
-          <UserPlus />
-          Add Student
-        </Button>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Recent Sessions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
-            </div>
-          ) : recentSessions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <CalendarDays className="size-10 text-muted-foreground/40 mb-3" />
-              <p className="text-sm font-medium text-foreground">No sessions yet</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Mark attendance for your first class to get started.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {recentSessions.map((session) => {
-                const date = toSessionDate(session.class_date)
-                if (!date) return null
-                const dayName = format(date, "EEEE")
-                const isFriSat = dayName === "Friday" || dayName === "Saturday"
-                return (
-                  <div
-                    key={session.id}
-                    className="flex items-center justify-between py-2.5 px-3 rounded-lg border bg-muted/30 hover:bg-muted/60 transition-colors cursor-pointer"
-                    onClick={() => navigate(`/attendance?date=${session.class_date}`)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center size-8 rounded-md bg-primary/10">
-                        <CalendarCheck className="size-4 text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">
-                          {format(date, "MMMM d, yyyy")}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{dayName}</p>
-                      </div>
-                    </div>
-                    {isFriSat && (
-                      <Badge variant="secondary" className="text-xs">
-                        Weekly class
-                      </Badge>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   )
 }

@@ -32,8 +32,12 @@ export interface StudentDetailsResponse {
   student: Student
   sessions: StudentSessionDetail[]
   trip_info?: {
-    last_trip_date?: string | null
+    last_attended_trip_date?: string | null
+    last_attended_trip_details?: string | null
+    next_trip_date?: string | null
+    next_trip_details?: string | null
     has_attended_trip: boolean
+    has_upcoming_trip: boolean
   }
 }
 

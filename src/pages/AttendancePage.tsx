@@ -8,6 +8,7 @@ import {
   Save,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -60,6 +61,7 @@ export default function AttendancePage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [search, setSearch] = useState("")
   const [sessions, setSessions] = useState<AttendanceSession[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(true)
 
@@ -139,8 +141,17 @@ export default function AttendancePage() {
     }
   }
 
-  const presentCount = rows.filter((r) => r.status === "present").length
-  const absentCount = rows.filter((r) => r.status === "absent").length
+  const normalizedSearch = search.trim().toLowerCase()
+  const filteredRows = normalizedSearch
+    ? rows.filter((row) => {
+        const name = row.student.full_name.toLowerCase()
+        const phone = row.student.phone ?? ""
+        return name.includes(normalizedSearch) || phone.includes(normalizedSearch)
+      })
+    : rows
+
+  const presentCount = filteredRows.filter((r) => r.status === "present").length
+  const absentCount = filteredRows.filter((r) => r.status === "absent").length
 
   const toSessionDate = (value: string | null | undefined) => {
     if (!value) return null
@@ -278,6 +289,17 @@ export default function AttendancePage() {
                 </div>
               )}
 
+              {rows.length > 0 && (
+                <Input
+                  id="attendance-search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search students"
+                  className="max-w-sm"
+                  aria-label="Search students"
+                />
+              )}
+
               {loading ? (
                 <div className="space-y-3">
                   {Array.from({ length: 6 }).map((_, i) => (
@@ -292,9 +314,17 @@ export default function AttendancePage() {
                     Add students to mark attendance.
                   </p>
                 </div>
+              ) : filteredRows.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <CalendarDays className="size-12 text-muted-foreground/30 mb-4" />
+                  <p className="text-sm font-medium text-foreground">No students match your search</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Try a different name or phone number.
+                  </p>
+                </div>
               ) : (
                 <div className="max-h-[28rem] overflow-y-auto pr-1 space-y-2">
-                  {rows.map(({ student, status }) => (
+                  {filteredRows.map(({ student, status }) => (
                     <div
                       key={student.id}
                       className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg border transition-all text-left ${

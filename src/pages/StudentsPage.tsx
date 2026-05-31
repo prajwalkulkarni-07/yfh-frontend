@@ -301,7 +301,6 @@ export default function StudentsPage() {
               <Label htmlFor="full_name">Full Name *</Label>
               <Input
                 id="full_name"
-                placeholder="e.g. Priya Sharma"
                 value={formData.full_name}
                 onChange={(e) => setFormData((p) => ({ ...p, full_name: e.target.value }))}
               />
@@ -311,7 +310,6 @@ export default function StudentsPage() {
               <Input
                 id="phone"
                 type="tel"
-                placeholder="+1 555 000 0000"
                 value={formData.phone}
                 onChange={(e) => setFormData((p) => ({ ...p, phone: e.target.value }))}
               />
@@ -322,7 +320,6 @@ export default function StudentsPage() {
                 id="age"
                 type="number"
                 min={1}
-                placeholder="18"
                 value={formData.age}
                 onChange={(e) => setFormData((p) => ({ ...p, age: e.target.value }))}
               />
@@ -341,7 +338,7 @@ export default function StudentsPage() {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="studying">Studying</SelectItem>
@@ -354,7 +351,6 @@ export default function StudentsPage() {
                 <Label htmlFor="institution_name">School/College Name *</Label>
                 <Input
                   id="institution_name"
-                  placeholder="e.g. XYZ College"
                   value={formData.institution_name}
                   onChange={(e) =>
                     setFormData((p) => ({ ...p, institution_name: e.target.value }))
@@ -367,7 +363,6 @@ export default function StudentsPage() {
                 <Label htmlFor="company_name">Company Name *</Label>
                 <Input
                   id="company_name"
-                  placeholder="e.g. ABC Pvt Ltd"
                   value={formData.company_name}
                   onChange={(e) =>
                     setFormData((p) => ({ ...p, company_name: e.target.value }))

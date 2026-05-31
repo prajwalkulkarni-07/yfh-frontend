@@ -40,6 +40,12 @@ export default function ScheduleTripPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  const today = useMemo(() => {
+    const now = new Date()
+    now.setHours(0, 0, 0, 0)
+    return now
+  }, [])
+
   const toDateOnly = (value: string | null | undefined) => {
     if (!value) return null
     return value.split("T")[0]
@@ -69,6 +75,20 @@ export default function ScheduleTripPage() {
     () => trips.find((trip) => trip.id === selectedTripId) ?? null,
     [trips, selectedTripId]
   )
+
+  const todayKey = useMemo(() => format(today, "yyyy-MM-dd"), [today])
+
+  const reservedStudentIds = useMemo(() => {
+    const reserved = new Set<string>()
+    trips.forEach((trip) => {
+      const tripDate = toDateOnly(trip.trip_date)
+      if (!tripDate || tripDate < todayKey) return
+      (trip.participants ?? []).forEach((participant) => {
+        reserved.add(participant.id)
+      })
+    })
+    return reserved
+  }, [trips, todayKey])
 
   useEffect(() => {
     async function load() {
@@ -104,12 +124,17 @@ export default function ScheduleTripPage() {
 
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return students
-    return students.filter((student) =>
-      student.full_name.toLowerCase().includes(q) ||
-      (student.phone?.includes(q) ?? false)
-    )
-  }, [students, search])
+    return students.filter((student) => {
+      if (reservedStudentIds.has(student.id) && !selectedStudents.has(student.id)) {
+        return false
+      }
+      if (!q) return true
+      return (
+        student.full_name.toLowerCase().includes(q) ||
+        (student.phone?.includes(q) ?? false)
+      )
+    })
+  }, [students, search, reservedStudentIds, selectedStudents])
 
   const isLocked = selectedTrip?.is_locked ?? false
 
@@ -183,9 +208,6 @@ export default function ScheduleTripPage() {
       setDeleting(false)
     }
   }
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
 
   return (
     <div className="space-y-6">

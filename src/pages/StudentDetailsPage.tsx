@@ -92,7 +92,13 @@ export default function StudentDetailsPage() {
     return details?.sessions ?? []
   }, [details])
 
-  const tripStatus = details?.trip_info?.has_attended_trip
+  const tripInfo = details?.trip_info
+  const hasAttendedTrip = tripInfo?.has_attended_trip
+  const hasUpcomingTrip = tripInfo?.has_upcoming_trip
+  const attendedTripDate = tripInfo?.last_attended_trip_date
+  const attendedTripDetails = tripInfo?.last_attended_trip_details
+  const upcomingTripDate = tripInfo?.next_trip_date
+  const upcomingTripDetails = tripInfo?.next_trip_details
 
   const formatDate = (value: string | null | undefined) => {
     if (!value) return "-"
@@ -326,17 +332,26 @@ export default function StudentDetailsPage() {
               <div className="space-y-2 sm:col-span-2">
                 <Label>Trip Attendance</Label>
                 <div className="rounded-md border border-border/60 px-3 py-2 text-sm">
-                  {tripStatus === undefined ? (
+                  {hasAttendedTrip === undefined ? (
                     <span className="text-muted-foreground">No trip data yet</span>
-                  ) : tripStatus ? (
+                  ) : hasAttendedTrip ? (
                     <span className="text-emerald-600 font-medium">Attended a trip</span>
                   ) : (
                     <span className="text-red-600 font-medium">Yet to attend a trip</span>
                   )}
-                  {details.trip_info?.last_trip_date && (
-                    <span className="text-xs text-muted-foreground ml-2">
-                      Last trip: {formatDate(details.trip_info.last_trip_date)}
-                    </span>
+                  {hasAttendedTrip && attendedTripDate && (
+                    <div className="text-xs text-muted-foreground mt-2 space-y-1">
+                      <div>Trip date: {formatDate(attendedTripDate)}</div>
+                      {attendedTripDetails ? <div>Trip: {attendedTripDetails}</div> : null}
+                    </div>
+                  )}
+                  {!hasAttendedTrip && hasUpcomingTrip && upcomingTripDate && (
+                    <div className="text-xs text-muted-foreground mt-2 space-y-1">
+                      <div>Upcoming trip date: {formatDate(upcomingTripDate)}</div>
+                      {upcomingTripDetails ? (
+                        <div>Upcoming trip: {upcomingTripDetails}</div>
+                      ) : null}
+                    </div>
                   )}
                 </div>
               </div>
