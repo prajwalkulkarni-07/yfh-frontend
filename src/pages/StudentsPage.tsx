@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react"
+import { useNavigate } from "react-router-dom"
 import {
   Search,
   UserPlus,
@@ -25,7 +26,6 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   Select,
   SelectContent,
@@ -36,10 +36,8 @@ import {
 import {
   getStudents,
   createStudent,
-  getStudentDetails,
 } from "@/services/api"
-import type { Student, StudentDetailsResponse, StudentSessionDetail } from "@/types"
-import { format } from "date-fns"
+import type { Student } from "@/types"
 
 interface StudentFormData {
   full_name: string
@@ -60,6 +58,7 @@ const EMPTY_FORM: StudentFormData = {
 }
 
 export default function StudentsPage() {
+  const navigate = useNavigate()
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -69,19 +68,6 @@ export default function StudentsPage() {
   const [formData, setFormData] = useState<StudentFormData>(EMPTY_FORM)
   const [formLoading, setFormLoading] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
-
-  const [detailsOpen, setDetailsOpen] = useState(false)
-  const [detailsLoading, setDetailsLoading] = useState(false)
-  const [detailsError, setDetailsError] = useState<string | null>(null)
-  const [detailsData, setDetailsData] = useState<StudentDetailsResponse | null>(null)
-
-  const formatSessionDate = (value: string | null | undefined) => {
-    if (!value) return "-"
-    const dateObj = new Date(value.includes("T") ? value : `${value}T00:00:00`)
-    if (Number.isNaN(dateObj.getTime())) return "-"
-    return format(dateObj, "MMM d, yyyy")
-  }
-
 
   const fetchStudents = useCallback(async () => {
     setLoading(true)
@@ -116,18 +102,8 @@ export default function StudentsPage() {
     setAddOpen(true)
   }
 
-  async function openDetails(student: Student) {
-    setDetailsOpen(true)
-    setDetailsLoading(true)
-    setDetailsError(null)
-    try {
-      const data = await getStudentDetails(student.id)
-      setDetailsData(data)
-    } catch (err) {
-      setDetailsError(err instanceof Error ? err.message : "Failed to load student details")
-    } finally {
-      setDetailsLoading(false)
-    }
+  function openDetails(student: Student) {
+    navigate(`/students/${student.id}`)
   }
 
 
@@ -419,106 +395,6 @@ export default function StudentsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={detailsOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDetailsOpen(false)
-            setDetailsData(null)
-            setDetailsError(null)
-          }
-        }}
-      >
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Student Details</DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
-              View the student profile and class attendance.
-            </DialogDescription>
-          </DialogHeader>
-          {detailsLoading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-6 w-full" />
-              ))}
-            </div>
-          ) : detailsError ? (
-            <p className="text-sm text-destructive">{detailsError}</p>
-          ) : detailsData ? (
-            <div className="space-y-6">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs text-muted-foreground">Name</p>
-                  <p className="text-sm font-medium text-foreground">{detailsData.student.full_name}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Phone</p>
-                  <p className="text-sm font-medium text-foreground">{detailsData.student.phone ?? "-"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Age</p>
-                  <p className="text-sm font-medium text-foreground">{detailsData.student.age ?? "-"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Type</p>
-                  <p className="text-sm font-medium text-foreground">
-                    {detailsData.student.student_type
-                      ? (detailsData.student.student_type === "studying" ? "Studying" : "Working")
-                      : "-"}
-                  </p>
-                </div>
-                {detailsData.student.student_type === "studying" && detailsData.student.institution_name && (
-                  <div className="sm:col-span-2">
-                    <p className="text-xs text-muted-foreground">School/College</p>
-                    <p className="text-sm font-medium text-foreground">{detailsData.student.institution_name}</p>
-                  </div>
-                )}
-                {detailsData.student.student_type === "working" && detailsData.student.company_name && (
-                  <div className="sm:col-span-2">
-                    <p className="text-xs text-muted-foreground">Company</p>
-                    <p className="text-sm font-medium text-foreground">{detailsData.student.company_name}</p>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <p className="text-sm font-semibold text-foreground mb-2">Class Attendance</p>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Class</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Attended On</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {detailsData.sessions.map((row: StudentSessionDetail) => (
-                      <TableRow key={row.class_id ?? row.class_name ?? "class"}>
-                        <TableCell>{row.class_name ?? "Class"}</TableCell>
-                        <TableCell>
-                          {row.status === "present" ? (
-                            <span className="text-emerald-600 font-medium">Attended</span>
-                          ) : (
-                            <span className="text-red-600 font-medium">Not Attended</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {row.status === "present" ? formatSessionDate(row.attended_on) : "-"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          ) : null}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDetailsOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

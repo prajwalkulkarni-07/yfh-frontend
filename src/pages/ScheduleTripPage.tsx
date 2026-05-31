@@ -1,0 +1,408 @@
+import { useEffect, useMemo, useState } from "react"
+import { CalendarDays, AlertCircle, Save, Users, Trash2 } from "lucide-react"
+import { format } from "date-fns"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { Badge } from "@/components/ui/badge"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { createTrip, deleteTrip, getStudents, getTrips, updateTripParticipants } from "@/services/api"
+import type { Student, Trip } from "@/types"
+
+export default function ScheduleTripPage() {
+  const [students, setStudents] = useState<Student[]>([])
+  const [trips, setTrips] = useState<Trip[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const [selectedTripId, setSelectedTripId] = useState<string | null>(null)
+  const [tripDate, setTripDate] = useState<Date | null>(null)
+  const [search, setSearch] = useState("")
+  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set())
+  const [details, setDetails] = useState("")
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const toDateOnly = (value: string | null | undefined) => {
+    if (!value) return null
+    return value.split("T")[0]
+  }
+
+  const toDateFromTrip = (value: string | null | undefined) => {
+    const dateOnly = toDateOnly(value)
+    if (!dateOnly) return null
+    const dateObj = new Date(`${dateOnly}T00:00:00`)
+    return Number.isNaN(dateObj.getTime()) ? null : dateObj
+  }
+
+  const formatTripDateIST = (value: string | null | undefined) => {
+    const dateOnly = toDateOnly(value)
+    if (!dateOnly) return "-"
+    const dateObj = new Date(`${dateOnly}T00:00:00+05:30`)
+    if (Number.isNaN(dateObj.getTime())) return dateOnly
+    return dateObj.toLocaleDateString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+    })
+  }
+
+  const selectedTrip = useMemo(
+    () => trips.find((trip) => trip.id === selectedTripId) ?? null,
+    [trips, selectedTripId]
+  )
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      setError(null)
+      try {
+        const [studentsData, tripsData] = await Promise.all([
+          getStudents(),
+          getTrips(),
+        ])
+        setStudents(studentsData)
+        setTrips(tripsData)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load trip data")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    load()
+  }, [])
+
+  useEffect(() => {
+    if (!selectedTrip) return
+    setError(null)
+    setTripDate(toDateFromTrip(selectedTrip.trip_date))
+    const participantIds = new Set(
+      (selectedTrip.participants ?? []).map((participant) => participant.id)
+    )
+    setSelectedStudents(participantIds)
+    setDetails(selectedTrip.details ?? "")
+  }, [selectedTrip])
+
+  const filteredStudents = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return students
+    return students.filter((student) =>
+      student.full_name.toLowerCase().includes(q) ||
+      (student.phone?.includes(q) ?? false)
+    )
+  }, [students, search])
+
+  const isLocked = selectedTrip?.is_locked ?? false
+
+  const resetForm = () => {
+    setSelectedTripId(null)
+    setTripDate(null)
+    setSearch("")
+    setSelectedStudents(new Set())
+    setDetails("")
+    setError(null)
+  }
+
+  const toggleStudent = (studentId: string) => {
+    setSelectedStudents((prev) => {
+      const next = new Set(prev)
+      if (next.has(studentId)) {
+        next.delete(studentId)
+      } else {
+        next.add(studentId)
+      }
+      return next
+    })
+  }
+
+  const handleSave = async () => {
+    const dateKey = selectedTrip
+      ? toDateOnly(selectedTrip.trip_date)
+      : tripDate
+        ? format(tripDate, "yyyy-MM-dd")
+        : null
+
+    if (!dateKey) {
+      setError("Trip date is required")
+      return
+    }
+
+    const studentIds = Array.from(selectedStudents)
+
+    setSaving(true)
+    setError(null)
+    try {
+      if (selectedTripId) {
+        await updateTripParticipants(selectedTripId, studentIds, details)
+      } else {
+        const created = await createTrip(dateKey, studentIds, details)
+        setSelectedTripId(created.id)
+      }
+
+      const tripsData = await getTrips()
+      setTrips(tripsData)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save trip")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!selectedTripId) return
+    setDeleting(true)
+    setError(null)
+    try {
+      await deleteTrip(selectedTripId)
+      setDeleteOpen(false)
+      resetForm()
+      const tripsData = await getTrips()
+      setTrips(tripsData)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete trip")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Schedule Trip</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Plan trips and select participants. Changes are locked one day before the trip.
+        </p>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-lg px-4 py-3">
+          <AlertCircle className="size-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base">
+              {selectedTrip ? "Edit Trip" : "New Trip"}
+            </CardTitle>
+            {selectedTrip && (
+              <div className="flex items-center gap-2">
+                <AlertDialog
+                  open={deleteOpen}
+                  onOpenChange={(open) => {
+                    if (deleting) return
+                    setDeleteOpen(open)
+                  }}
+                >
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" disabled={isLocked}>
+                      <Trash2 className="size-4" />
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete this trip?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. All participants for this trip will be removed.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        variant="destructive"
+                        onClick={(event) => {
+                          event.preventDefault()
+                          handleDelete()
+                        }}
+                        disabled={deleting}
+                      >
+                        {deleting ? "Deleting…" : "Delete Trip"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <Button variant="outline" size="sm" onClick={resetForm}>
+                  Create New
+                </Button>
+              </div>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Trip Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-60 justify-between"
+                    disabled={!!selectedTrip}
+                  >
+                    <span>{tripDate ? format(tripDate, "MMM d, yyyy") : "Select date"}</span>
+                    <CalendarDays className="size-4 text-muted-foreground" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={tripDate ?? undefined}
+                    disabled={(date) => date < today}
+                    onSelect={(date) => setTripDate(date ?? null)}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              {selectedTrip && (
+                <p className="text-xs text-muted-foreground">
+                  Trip dates cannot be changed after creation.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Trip Details</Label>
+              <Textarea
+                placeholder="e.g. Trip to Mysuru, departure at 7:00 AM"
+                value={details}
+                onChange={(event) => setDetails(event.target.value)}
+                disabled={isLocked}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Participants</Label>
+                <span className="text-xs text-muted-foreground">
+                  {selectedStudents.size} selected
+                </span>
+              </div>
+              <Input
+                placeholder="Search by name or phone"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                disabled={isLocked}
+              />
+              <div className="rounded-lg border border-border/60">
+                <ScrollArea className="h-64">
+                  {loading ? (
+                    <div className="px-4 py-3 text-sm text-muted-foreground">Loading students…</div>
+                  ) : filteredStudents.length === 0 ? (
+                    <div className="px-4 py-3 text-sm text-muted-foreground">No students found.</div>
+                  ) : (
+                    <div className="divide-y">
+                      {filteredStudents.map((student) => {
+                        const checked = selectedStudents.has(student.id)
+                        return (
+                          <label
+                            key={student.id}
+                            className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                              isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-muted/40"
+                            }`}
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={() => toggleStudent(student.id)}
+                              disabled={isLocked}
+                            />
+                            <div className="flex flex-1 items-center justify-between gap-3">
+                              <span className="font-medium text-foreground">{student.full_name}</span>
+                              <span className="text-xs text-muted-foreground">{student.phone}</span>
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </ScrollArea>
+              </div>
+              {isLocked && (
+                <p className="text-xs text-muted-foreground">
+                  Trip details and participants are locked one day before the trip.
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <Button onClick={handleSave} disabled={saving || isLocked || loading}>
+                <Save className="size-4" />
+                {saving ? "Saving…" : selectedTrip ? "Update Trip" : "Schedule Trip"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Scheduled Trips</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {loading ? (
+              <div className="text-sm text-muted-foreground">Loading trips…</div>
+            ) : trips.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No trips scheduled yet.</div>
+            ) : (
+              <div className="space-y-2">
+                {trips.map((trip) => {
+                  return (
+                    <button
+                      key={trip.id}
+                      onClick={() => setSelectedTripId(trip.id)}
+                      className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
+                        trip.id === selectedTripId
+                          ? "border-primary/40 bg-primary/10"
+                          : "border-border/60 hover:bg-muted/40"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">
+                            {formatTripDateIST(trip.trip_date)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {trip.participant_count ?? trip.participants?.length ?? 0} participants
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {trip.is_locked ? (
+                            <Badge variant="secondary">Locked</Badge>
+                          ) : (
+                            <Badge className="bg-primary/15 text-primary border-0">Open</Badge>
+                          )}
+                          <Users className="size-4 text-muted-foreground" />
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}

@@ -6,7 +6,10 @@ import type {
   AttendanceSummaryItem,
   InactiveReportItem,
   EligibleReportItem,
+  PromotedReportItem,
+  YetToAttendTripReportItem,
   StudentDetailsResponse,
+  Trip,
   User,
 } from "@/types"
 
@@ -105,8 +108,14 @@ export async function createStudent(data: {
   })
 }
 
-export async function getStudents(active?: boolean): Promise<Student[]> {
-  const query = active !== undefined ? `?active=${active}` : ""
+export async function getStudents(
+  active?: boolean,
+  includePromoted?: boolean
+): Promise<Student[]> {
+  const params = new URLSearchParams()
+  if (active !== undefined) params.set("active", String(active))
+  if (includePromoted) params.set("include_promoted", "true")
+  const query = params.toString() ? `?${params}` : ""
   return request(`/api/students${query}`)
 }
 
@@ -135,6 +144,12 @@ export async function setStudentStatus(
   return request(`/api/students/${id}/status`, {
     method: "PATCH",
     body: JSON.stringify({ active }),
+  })
+}
+
+export async function deleteStudent(id: string): Promise<void> {
+  return request(`/api/students/${id}`, {
+    method: "DELETE",
   })
 }
 
@@ -207,4 +222,45 @@ export async function getInactiveReport(): Promise<InactiveReportItem[]> {
 
 export async function getEligibleReport(): Promise<EligibleReportItem[]> {
   return request("/api/reports/eligible")
+}
+
+export async function getPromotedReport(): Promise<PromotedReportItem[]> {
+  return request("/api/reports/promoted")
+}
+
+export async function getYetToAttendTripReport(): Promise<YetToAttendTripReportItem[]> {
+  return request("/api/reports/yet-to-attend-trip")
+}
+
+// Trips
+export async function getTrips(): Promise<Trip[]> {
+  return request("/api/trips")
+}
+
+export async function createTrip(
+  tripDate: string,
+  studentIds: string[],
+  details?: string
+): Promise<Trip> {
+  return request("/api/trips", {
+    method: "POST",
+    body: JSON.stringify({ trip_date: tripDate, student_ids: studentIds, details }),
+  })
+}
+
+export async function updateTripParticipants(
+  tripId: string,
+  studentIds: string[],
+  details?: string
+): Promise<{ id: string; participant_count: number }> {
+  return request(`/api/trips/${tripId}`, {
+    method: "PUT",
+    body: JSON.stringify({ student_ids: studentIds, details }),
+  })
+}
+
+export async function deleteTrip(tripId: string): Promise<void> {
+  return request(`/api/trips/${tripId}`, {
+    method: "DELETE",
+  })
 }

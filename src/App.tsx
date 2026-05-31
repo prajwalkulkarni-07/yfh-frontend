@@ -7,6 +7,7 @@ import StudentsPage from "@/pages/StudentsPage"
 import StudentDetailsPage from "@/pages/StudentDetailsPage"
 import AttendancePage from "@/pages/AttendancePage"
 import ReportsPage from "@/pages/ReportsPage"
+import ScheduleTripPage from "@/pages/ScheduleTripPage"
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const auth = useAuthState()
@@ -25,6 +26,7 @@ export default function App() {
             <Route path="/students/:id" element={<StudentDetailsPage />} />
             <Route path="/attendance" element={<AttendancePage />} />
             <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/trips" element={<ScheduleTripPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

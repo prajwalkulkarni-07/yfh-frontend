@@ -1,10 +1,21 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, Loader2, Save, AlertCircle } from "lucide-react"
+import { ArrowLeft, Loader2, Save, AlertCircle, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import {
   Select,
   SelectContent,
@@ -20,7 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { getStudentDetails, updateStudent } from "@/services/api"
+import { deleteStudent, getStudentDetails, updateStudent } from "@/services/api"
 import type { Student, StudentDetailsResponse, StudentSessionDetail } from "@/types"
 import { format } from "date-fns"
 
@@ -51,6 +62,9 @@ export default function StudentDetailsPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [details, setDetails] = useState<StudentDetailsResponse | null>(null)
   const [formData, setFormData] = useState<StudentFormData>(EMPTY_FORM)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -77,6 +91,8 @@ export default function StudentDetailsPage() {
   const attendanceRows = useMemo(() => {
     return details?.sessions ?? []
   }, [details])
+
+  const tripStatus = details?.trip_info?.has_attended_trip
 
   const formatDate = (value: string | null | undefined) => {
     if (!value) return "-"
@@ -140,6 +156,21 @@ export default function StudentDetailsPage() {
     }
   }
 
+  const handleDelete = async () => {
+    if (!id) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteStudent(id)
+      setDeleteOpen(false)
+      navigate("/students")
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete student")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -149,10 +180,55 @@ export default function StudentDetailsPage() {
             View and update student profile and attendance
           </p>
         </div>
-        <Button variant="outline" onClick={() => navigate("/students")}> 
-          <ArrowLeft className="size-4" />
-          Back to Students
-        </Button>
+        <div className="flex items-center gap-2">
+          <AlertDialog
+            open={deleteOpen}
+            onOpenChange={(open) => {
+              if (deleting) return
+              setDeleteOpen(open)
+              if (!open) setDeleteError(null)
+            }}
+          >
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive">
+                <Trash2 className="size-4" />
+                Delete Student
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete this student?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. All attendance records for this student will be removed.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {deleteError && (
+                <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-lg px-4 py-3">
+                  <AlertCircle className="size-4 shrink-0" />
+                  {deleteError}
+                </div>
+              )}
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    handleDelete()
+                  }}
+                  disabled={deleting}
+                >
+                  {deleting ? <Loader2 className="size-4 animate-spin" /> : null}
+                  {deleting ? "Deleting…" : "Delete Student"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button variant="outline" onClick={() => navigate("/students")}>
+            <ArrowLeft className="size-4" />
+            Back to Students
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -247,6 +323,23 @@ export default function StudentDetailsPage() {
                   />
                 </div>
               )}
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Trip Attendance</Label>
+                <div className="rounded-md border border-border/60 px-3 py-2 text-sm">
+                  {tripStatus === undefined ? (
+                    <span className="text-muted-foreground">No trip data yet</span>
+                  ) : tripStatus ? (
+                    <span className="text-emerald-600 font-medium">Attended a trip</span>
+                  ) : (
+                    <span className="text-red-600 font-medium">Yet to attend a trip</span>
+                  )}
+                  {details.trip_info?.last_trip_date && (
+                    <span className="text-xs text-muted-foreground ml-2">
+                      Last trip: {formatDate(details.trip_info.last_trip_date)}
+                    </span>
+                  )}
+                </div>
+              </div>
               {formError && (
                 <p className="text-sm text-destructive sm:col-span-2">{formError}</p>
               )}

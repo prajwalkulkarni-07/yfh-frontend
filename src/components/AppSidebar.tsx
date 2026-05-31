@@ -4,6 +4,7 @@ import {
   Users,
   CalendarCheck,
   BarChart3,
+  MapPin,
   Leaf,
   LogOut,
   Settings,
@@ -34,6 +35,7 @@ const navItems = [
   { to: "/students", label: "Students", icon: Users },
   { to: "/attendance", label: "Attendance", icon: CalendarCheck },
   { to: "/reports", label: "Reports", icon: BarChart3 },
+  { to: "/trips", label: "Schedule Trip", icon: MapPin },
 ]
 
 export function AppSidebar() {
