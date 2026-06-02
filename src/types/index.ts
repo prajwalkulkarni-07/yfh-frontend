@@ -12,8 +12,12 @@ export interface Student {
   phone: string
   age: number
   student_type: "studying" | "working"
-  institution_name?: string | null
+  college_name?: string | null
+  branch?: string | null
+  semester?: number | null
   company_name?: string | null
+  designation?: string | null
+  experience?: number | null
   active: boolean
   level?: number
   promoted_at?: string | null

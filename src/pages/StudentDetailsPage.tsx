@@ -40,8 +40,12 @@ interface StudentFormData {
   phone: string
   age: string
   student_type: "studying" | "working" | ""
-  institution_name: string
+  college_name: string
+  branch: string
+  semester: string
   company_name: string
+  designation: string
+  experience: string
 }
 
 const EMPTY_FORM: StudentFormData = {
@@ -49,8 +53,12 @@ const EMPTY_FORM: StudentFormData = {
   phone: "",
   age: "",
   student_type: "",
-  institution_name: "",
+  college_name: "",
+  branch: "",
+  semester: "",
   company_name: "",
+  designation: "",
+  experience: "",
 }
 
 export default function StudentDetailsPage() {
@@ -78,8 +86,12 @@ export default function StudentDetailsPage() {
           phone: data.student.phone ?? "",
           age: data.student.age ? String(data.student.age) : "",
           student_type: data.student.student_type ?? "",
-          institution_name: data.student.institution_name ?? "",
+          college_name: data.student.college_name ?? "",
+          branch: data.student.branch ?? "",
+          semester: data.student.semester !== undefined && data.student.semester !== null ? String(data.student.semester) : "",
           company_name: data.student.company_name ?? "",
+          designation: data.student.designation ?? "",
+          experience: data.student.experience !== undefined && data.student.experience !== null ? String(data.student.experience) : "",
         })
       })
       .catch((err) => {
@@ -126,12 +138,30 @@ export default function StudentDetailsPage() {
       setFormError("Student type is required")
       return
     }
-    if (formData.student_type === "studying" && !formData.institution_name.trim()) {
-      setFormError("School/College name is required")
+    if (formData.student_type === "studying" && !formData.college_name.trim()) {
+      setFormError("College name is required")
+      return
+    }
+    if (formData.student_type === "studying" && !formData.branch.trim()) {
+      setFormError("Branch is required")
+      return
+    }
+    const parsedSemester = Number(formData.semester)
+    if (formData.student_type === "studying" && (!Number.isFinite(parsedSemester) || parsedSemester <= 0)) {
+      setFormError("Semester must be a positive number")
       return
     }
     if (formData.student_type === "working" && !formData.company_name.trim()) {
       setFormError("Company name is required")
+      return
+    }
+    if (formData.student_type === "working" && !formData.designation.trim()) {
+      setFormError("Designation is required")
+      return
+    }
+    const parsedExperience = Number(formData.experience)
+    if (formData.student_type === "working" && (!Number.isFinite(parsedExperience) || parsedExperience < 0)) {
+      setFormError("Experience must be a non-negative number")
       return
     }
     setSaving(true)
@@ -142,13 +172,29 @@ export default function StudentDetailsPage() {
         phone: formData.phone.trim(),
         age: parsedAge,
         student_type: formData.student_type as "studying" | "working",
-        institution_name:
+        college_name:
           formData.student_type === "studying"
-            ? formData.institution_name.trim()
+            ? formData.college_name.trim()
+            : undefined,
+        branch:
+          formData.student_type === "studying"
+            ? formData.branch.trim()
+            : undefined,
+        semester:
+          formData.student_type === "studying"
+            ? parsedSemester
             : undefined,
         company_name:
           formData.student_type === "working"
             ? formData.company_name.trim()
+            : undefined,
+        designation:
+          formData.student_type === "working"
+            ? formData.designation.trim()
+            : undefined,
+        experience:
+          formData.student_type === "working"
+            ? parsedExperience
             : undefined,
       }
       const updated = await updateStudent(id, payload)
@@ -291,8 +337,12 @@ export default function StudentDetailsPage() {
                     setFormData((p) => ({
                       ...p,
                       student_type: value as "studying" | "working",
-                      institution_name: value === "studying" ? p.institution_name : "",
-                      company_name: value === "working" ? p.company_name : "",
+                        college_name: value === "studying" ? p.college_name : "",
+                        branch: value === "studying" ? p.branch : "",
+                        semester: value === "studying" ? p.semester : "",
+                        company_name: value === "working" ? p.company_name : "",
+                        designation: value === "working" ? p.designation : "",
+                        experience: value === "working" ? p.experience : "",
                     }))
                   }
                 >
@@ -307,15 +357,37 @@ export default function StudentDetailsPage() {
               </div>
               {formData.student_type === "studying" && (
                 <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="institution_name">School/College Name *</Label>
+                  <Label htmlFor="college_name">College Name *</Label>
                   <Input
-                    id="institution_name"
-                    value={formData.institution_name}
+                    id="college_name"
+                    value={formData.college_name}
                     onChange={(e) =>
-                      setFormData((p) => ({ ...p, institution_name: e.target.value }))
+                      setFormData((p) => ({ ...p, college_name: e.target.value }))
                     }
                   />
                 </div>
+              )}
+              {formData.student_type === "studying" && (
+                <>
+                  <div className="space-y-2 sm:col-span-1">
+                    <Label htmlFor="branch">Branch *</Label>
+                    <Input
+                      id="branch"
+                      value={formData.branch}
+                      onChange={(e) => setFormData((p) => ({ ...p, branch: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-1">
+                    <Label htmlFor="semester">Semester *</Label>
+                    <Input
+                      id="semester"
+                      type="number"
+                      min={1}
+                      value={formData.semester}
+                      onChange={(e) => setFormData((p) => ({ ...p, semester: e.target.value }))}
+                    />
+                  </div>
+                </>
               )}
               {formData.student_type === "working" && (
                 <div className="space-y-2 sm:col-span-2">
@@ -328,6 +400,29 @@ export default function StudentDetailsPage() {
                     }
                   />
                 </div>
+              )}
+              {formData.student_type === "working" && (
+                <>
+                  <div className="space-y-2 sm:col-span-1">
+                    <Label htmlFor="designation">Designation *</Label>
+                    <Input
+                      id="designation"
+                      value={formData.designation}
+                      onChange={(e) => setFormData((p) => ({ ...p, designation: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-1">
+                    <Label htmlFor="experience">Experience (Years) *</Label>
+                    <Input
+                      id="experience"
+                      type="number"
+                      min={0}
+                      step="0.1"
+                      value={formData.experience}
+                      onChange={(e) => setFormData((p) => ({ ...p, experience: e.target.value }))}
+                    />
+                  </div>
+                </>
               )}
               <div className="space-y-2 sm:col-span-2">
                 <Label>Trip Attendance</Label>

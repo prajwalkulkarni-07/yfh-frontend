@@ -99,8 +99,12 @@ export async function createStudent(data: {
   phone: string
   age: number
   student_type: "studying" | "working"
-  institution_name?: string
+  college_name?: string
+  branch?: string
+  semester?: number
   company_name?: string
+  designation?: string
+  experience?: number
 }): Promise<Student> {
   return request("/api/students", {
     method: "POST",
