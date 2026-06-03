@@ -71,6 +71,7 @@ export default function StudentsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "promoted">("all")
 
   const [addOpen, setAddOpen] = useState(false)
   const [formData, setFormData] = useState<StudentFormData>(EMPTY_FORM)
@@ -81,7 +82,7 @@ export default function StudentsPage() {
     setLoading(true)
     setError(null)
     try {
-      const data = await getStudents()
+      const data = await getStudents(undefined, true)
       setStudents(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load students")
@@ -96,6 +97,10 @@ export default function StudentsPage() {
 
   const filtered = students.filter((s) => {
     const q = search.toLowerCase()
+    const promoted = (s.level ?? 1) >= 2
+    if (statusFilter === "active" && (!s.active || promoted)) return false
+    if (statusFilter === "inactive" && (s.active || promoted)) return false
+    if (statusFilter === "promoted" && !promoted) return false
     return (
       s.full_name.toLowerCase().includes(q) ||
       (s.phone?.includes(q) ?? false) ||
@@ -238,6 +243,17 @@ export default function StudentsPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
+            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Filter students" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="promoted">Promoted</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -285,16 +301,25 @@ export default function StudentsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-medium text-foreground truncate">{student.full_name}</p>
-                      <Badge
-                        variant="outline"
-                        className={`text-xs ${
-                          student.active
-                            ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300"
-                            : "border-red-500/20 bg-red-500/10 text-red-700 hover:bg-red-500/15 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-300"
-                        }`}
-                      >
-                        {student.active ? "Active" : "Inactive"}
-                      </Badge>
+                      {(student.level ?? 1) >= 2 ? (
+                        <Badge
+                          variant="outline"
+                          className="text-xs border-blue-500/20 bg-blue-500/10 text-blue-700 hover:bg-blue-500/15 dark:border-blue-500/30 dark:bg-blue-500/15 dark:text-blue-300"
+                        >
+                          Promoted
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${
+                            student.active
+                              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300"
+                              : "border-red-500/20 bg-red-500/10 text-red-700 hover:bg-red-500/15 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-300"
+                          }`}
+                        >
+                          {student.active ? "Active" : "Inactive"}
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                       {student.phone && (

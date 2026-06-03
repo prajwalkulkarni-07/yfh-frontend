@@ -22,18 +22,24 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { createTrip, deleteTrip, getStudents, getTrips, updateTripParticipants } from "@/services/api"
-import type { Student, Trip } from "@/types"
+import {
+  createVolunteeringService,
+  deleteVolunteeringService,
+  getStudents,
+  getVolunteeringServices,
+  updateVolunteeringServiceParticipants,
+} from "@/services/api"
+import type { Student, VolunteeringService } from "@/types"
 
-export default function ScheduleTripPage() {
+export default function ScheduleVolunteeringPage() {
   const [students, setStudents] = useState<Student[]>([])
-  const [trips, setTrips] = useState<Trip[]>([])
+  const [services, setServices] = useState<VolunteeringService[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [selectedTripId, setSelectedTripId] = useState<string | null>(null)
-  const [tripDate, setTripDate] = useState<Date | null>(null)
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null)
+  const [serviceDate, setServiceDate] = useState<Date | null>(null)
   const [search, setSearch] = useState("")
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set())
   const [details, setDetails] = useState("")
@@ -51,14 +57,14 @@ export default function ScheduleTripPage() {
     return value.split("T")[0]
   }
 
-  const toDateFromTrip = (value: string | null | undefined) => {
+  const toDateFromService = (value: string | null | undefined) => {
     const dateOnly = toDateOnly(value)
     if (!dateOnly) return null
     const dateObj = new Date(`${dateOnly}T00:00:00`)
     return Number.isNaN(dateObj.getTime()) ? null : dateObj
   }
 
-  const formatTripDateIST = (value: string | null | undefined) => {
+  const formatServiceDateIST = (value: string | null | undefined) => {
     const dateOnly = toDateOnly(value)
     if (!dateOnly) return "-"
     const dateObj = new Date(`${dateOnly}T00:00:00+05:30`)
@@ -71,9 +77,9 @@ export default function ScheduleTripPage() {
     })
   }
 
-  const selectedTrip = useMemo(
-    () => trips.find((trip) => trip.id === selectedTripId) ?? null,
-    [trips, selectedTripId]
+  const selectedService = useMemo(
+    () => services.find((service) => service.id === selectedServiceId) ?? null,
+    [services, selectedServiceId]
   )
 
   useEffect(() => {
@@ -81,14 +87,14 @@ export default function ScheduleTripPage() {
       setLoading(true)
       setError(null)
       try {
-        const [studentsData, tripsData] = await Promise.all([
+        const [studentsData, servicesData] = await Promise.all([
           getStudents(undefined, true),
-          getTrips(),
+          getVolunteeringServices(),
         ])
         setStudents(studentsData)
-        setTrips(tripsData)
+        setServices(servicesData)
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load trip data")
+        setError(err instanceof Error ? err.message : "Failed to load volunteering data")
       } finally {
         setLoading(false)
       }
@@ -98,15 +104,15 @@ export default function ScheduleTripPage() {
   }, [])
 
   useEffect(() => {
-    if (!selectedTrip) return
+    if (!selectedService) return
     setError(null)
-    setTripDate(toDateFromTrip(selectedTrip.trip_date))
+    setServiceDate(toDateFromService(selectedService.service_date))
     const participantIds = new Set(
-      (selectedTrip.participants ?? []).map((participant) => participant.id)
+      (selectedService.participants ?? []).map((participant) => participant.id)
     )
     setSelectedStudents(participantIds)
-    setDetails(selectedTrip.details ?? "")
-  }, [selectedTrip])
+    setDetails(selectedService.details ?? "")
+  }, [selectedService])
 
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -120,8 +126,8 @@ export default function ScheduleTripPage() {
   }, [students, search])
 
   const resetForm = () => {
-    setSelectedTripId(null)
-    setTripDate(null)
+    setSelectedServiceId(null)
+    setServiceDate(null)
     setSearch("")
     setSelectedStudents(new Set())
     setDetails("")
@@ -141,14 +147,14 @@ export default function ScheduleTripPage() {
   }
 
   const handleSave = async () => {
-    const dateKey = tripDate
-      ? format(tripDate, "yyyy-MM-dd")
-      : selectedTrip
-        ? toDateOnly(selectedTrip.trip_date)
+    const dateKey = serviceDate
+      ? format(serviceDate, "yyyy-MM-dd")
+      : selectedService
+        ? toDateOnly(selectedService.service_date)
         : null
 
     if (!dateKey) {
-      setError("Trip date is required")
+      setError("Service date is required")
       return
     }
 
@@ -157,34 +163,34 @@ export default function ScheduleTripPage() {
     setSaving(true)
     setError(null)
     try {
-      if (selectedTripId) {
-        await updateTripParticipants(selectedTripId, studentIds, details, dateKey)
+      if (selectedServiceId) {
+        await updateVolunteeringServiceParticipants(selectedServiceId, studentIds, details, dateKey)
       } else {
-        const created = await createTrip(dateKey, studentIds, details)
-        setSelectedTripId(created.id)
+        const created = await createVolunteeringService(dateKey, studentIds, details)
+        setSelectedServiceId(created.id)
       }
 
-      const tripsData = await getTrips()
-      setTrips(tripsData)
+      const servicesData = await getVolunteeringServices()
+      setServices(servicesData)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save trip")
+      setError(err instanceof Error ? err.message : "Failed to save volunteering service")
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async () => {
-    if (!selectedTripId) return
+    if (!selectedServiceId) return
     setDeleting(true)
     setError(null)
     try {
-      await deleteTrip(selectedTripId)
+      await deleteVolunteeringService(selectedServiceId)
       setDeleteOpen(false)
       resetForm()
-      const tripsData = await getTrips()
-      setTrips(tripsData)
+      const servicesData = await getVolunteeringServices()
+      setServices(servicesData)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete trip")
+      setError(err instanceof Error ? err.message : "Failed to delete volunteering service")
     } finally {
       setDeleting(false)
     }
@@ -193,9 +199,9 @@ export default function ScheduleTripPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Schedule Trip</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Schedule Volunteering Service</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Plan trips and select participants. Trips stay editable after the date.
+          Plan volunteering services, choose students, and edit them whenever needed.
         </p>
       </div>
 
@@ -210,9 +216,9 @@ export default function ScheduleTripPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">
-              {selectedTrip ? "Edit Trip" : "New Trip"}
+              {selectedService ? "Edit Service" : "New Service"}
             </CardTitle>
-            {selectedTrip && (
+            {selectedService && (
               <div className="flex items-center gap-2">
                 <AlertDialog
                   open={deleteOpen}
@@ -229,9 +235,9 @@ export default function ScheduleTripPage() {
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Delete this trip?</AlertDialogTitle>
+                      <AlertDialogTitle>Delete this service?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This action cannot be undone. All participants for this trip will be removed.
+                        This action cannot be undone. All participants for this volunteering service will be removed.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -244,7 +250,7 @@ export default function ScheduleTripPage() {
                         }}
                         disabled={deleting}
                       >
-                        {deleting ? "Deleting…" : "Delete Trip"}
+                        {deleting ? "Deleting…" : "Delete Service"}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -257,38 +263,30 @@ export default function ScheduleTripPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Trip Date</Label>
+              <Label>Service Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-60 justify-between"
-                  >
-                    <span>{tripDate ? format(tripDate, "MMM d, yyyy") : "Select date"}</span>
+                  <Button variant="outline" className="w-60 justify-between">
+                    <span>{serviceDate ? format(serviceDate, "MMM d, yyyy") : "Select date"}</span>
                     <CalendarDays className="size-4 text-muted-foreground" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-auto p-0">
                   <Calendar
                     mode="single"
-                    selected={tripDate ?? undefined}
+                    selected={serviceDate ?? undefined}
                     disabled={(date) => date < today}
-                    onSelect={(date) => setTripDate(date ?? null)}
+                    onSelect={(date) => setServiceDate(date ?? null)}
                     initialFocus
                   />
                 </PopoverContent>
               </Popover>
-              {selectedTrip && (
-                <p className="text-xs text-muted-foreground">
-                  Trip details, date, and participants remain editable.
-                </p>
-              )}
             </div>
 
             <div className="space-y-2">
-              <Label>Trip Details</Label>
+              <Label>Service Description</Label>
               <Textarea
-                placeholder="e.g. Trip to Mysuru, departure at 7:00 AM"
+                placeholder="e.g. Community clean-up and event support"
                 value={details}
                 onChange={(event) => setDetails(event.target.value)}
               />
@@ -296,7 +294,7 @@ export default function ScheduleTripPage() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Participants</Label>
+                <Label>Students</Label>
                 <span className="text-xs text-muted-foreground">
                   {selectedStudents.size} selected
                 </span>
@@ -319,7 +317,7 @@ export default function ScheduleTripPage() {
                         return (
                           <label
                             key={student.id}
-                            className="flex items-center gap-3 px-4 py-3 text-sm transition-colors cursor-pointer hover:bg-muted/40"
+                            className="flex cursor-pointer items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-muted/40"
                           >
                             <Checkbox
                               checked={checked}
@@ -341,7 +339,7 @@ export default function ScheduleTripPage() {
             <div className="flex justify-end">
               <Button onClick={handleSave} disabled={saving || loading}>
                 <Save className="size-4" />
-                {saving ? "Saving…" : selectedTrip ? "Update Trip" : "Schedule Trip"}
+                {saving ? "Saving…" : selectedService ? "Update Service" : "Schedule Service"}
               </Button>
             </div>
           </CardContent>
@@ -349,43 +347,43 @@ export default function ScheduleTripPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Scheduled Trips</CardTitle>
+            <CardTitle className="text-base">Scheduled Services</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
-              <div className="text-sm text-muted-foreground">Loading trips…</div>
-            ) : trips.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No trips scheduled yet.</div>
+              <div className="text-sm text-muted-foreground">Loading services…</div>
+            ) : services.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No volunteering services scheduled yet.</div>
             ) : (
               <div className="space-y-2">
-                {trips.map((trip) => {
-                  return (
-                    <button
-                      key={trip.id}
-                      onClick={() => setSelectedTripId(trip.id)}
-                      className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
-                        trip.id === selectedTripId
-                          ? "border-primary/40 bg-primary/10"
-                          : "border-border/60 hover:bg-muted/40"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">
-                            {formatTripDateIST(trip.trip_date)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {trip.participant_count ?? trip.participants?.length ?? 0} participants
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className="bg-emerald-100 text-emerald-700 border-0 dark:bg-emerald-500/15 dark:text-emerald-300">Open</Badge>
-                          <Users className="size-4 text-muted-foreground" />
-                        </div>
+                {services.map((service) => (
+                  <button
+                    key={service.id}
+                    onClick={() => setSelectedServiceId(service.id)}
+                    className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
+                      service.id === selectedServiceId
+                        ? "border-primary/40 bg-primary/10"
+                        : "border-border/60 hover:bg-muted/40"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">
+                          {formatServiceDateIST(service.service_date)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {service.participant_count ?? service.participants?.length ?? 0} participants
+                        </p>
                       </div>
-                    </button>
-                  )
-                })}
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-emerald-100 text-emerald-700 border-0 dark:bg-emerald-500/15 dark:text-emerald-300">
+                          Open
+                        </Badge>
+                        <Users className="size-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                  </button>
+                ))}
               </div>
             )}
           </CardContent>

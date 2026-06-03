@@ -5,14 +5,22 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useAuth } from "@/hooks/useAuth"
 import { login } from "@/services/api"
 
 export default function LoginPage() {
-  const { signIn } = useAuth()
+  const { signIn, portal, setPortal } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [selectedPortal, setSelectedPortal] = useState<"yfh" | "gita">(portal ?? "yfh")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -23,7 +31,8 @@ export default function LoginPage() {
     try {
       const { token, user } = await login(email, password)
       signIn(token, user)
-      navigate("/")
+      setPortal(selectedPortal)
+      navigate(selectedPortal === "gita" ? "/gita/students" : "/")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed. Please try again.")
     } finally {
@@ -78,6 +87,18 @@ export default function LoginPage() {
                   required
                   autoComplete="current-password"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="portal">Choose portal</Label>
+                <Select value={selectedPortal} onValueChange={(value) => setSelectedPortal(value as "yfh" | "gita")}>
+                  <SelectTrigger id="portal">
+                    <SelectValue placeholder="Select portal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="yfh">Yoga for Happiness</SelectItem>
+                    <SelectItem value="gita">Bhagavad Gita Classes</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {error && (

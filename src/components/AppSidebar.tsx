@@ -5,9 +5,12 @@ import {
   CalendarCheck,
   BarChart3,
   MapPin,
+  HandHeart,
   Leaf,
   LogOut,
   Settings,
+  BookOpen,
+  ArrowLeftRight,
 } from "lucide-react"
 import {
   Sidebar,
@@ -30,21 +33,42 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
-const navItems = [
+type NavItem = {
+  to: string
+  label: string
+  icon: typeof LayoutDashboard
+  end?: boolean
+}
+
+const yfhNavItems: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/students", label: "Students", icon: Users },
   { to: "/attendance", label: "Attendance", icon: CalendarCheck },
-  { to: "/reports", label: "Reports", icon: BarChart3 },
   { to: "/trips", label: "Schedule Trip", icon: MapPin },
+  { to: "/volunteering-service", label: "Schedule Volunteering Service", icon: HandHeart },
+  { to: "/reports", label: "Reports", icon: BarChart3 },
+]
+
+const gitaNavItems: NavItem[] = [
+  { to: "/gita/students", label: "Students", icon: Users },
+  { to: "/gita/attendance", label: "Attendance", icon: CalendarCheck },
 ]
 
 export function AppSidebar() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, portal, setPortal } = useAuth()
   const navigate = useNavigate()
+  const activePortal = portal ?? "yfh"
+  const navItems = activePortal === "gita" ? gitaNavItems : yfhNavItems
 
   function handleSignOut() {
     signOut()
     navigate("/login")
+  }
+
+  function handlePortalSwitch() {
+    const nextPortal = activePortal === "gita" ? "yfh" : "gita"
+    setPortal(nextPortal)
+    navigate(nextPortal === "gita" ? "/gita/students" : "/")
   }
 
   const initials = user?.name
@@ -59,7 +83,9 @@ export function AppSidebar() {
             <Leaf className="size-4 text-primary" />
           </div>
           <div className="flex flex-col leading-none min-w-0">
-            <span className="text-sm font-semibold text-foreground truncate">Yoga for Happiness</span>
+            <span className="text-sm font-semibold text-foreground truncate">
+              {activePortal === "gita" ? "Bhagavad Gita Classes" : "Yoga for Happiness"}
+            </span>
             <span className="text-xs text-muted-foreground truncate">Attendance Portal</span>
           </div>
         </div>
@@ -92,6 +118,22 @@ export function AppSidebar() {
 
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              className="justify-between"
+              size="lg"
+              onClick={handlePortalSwitch}
+              tooltip={activePortal === "gita" ? "Switch to Yoga for Happiness" : "Switch to Bhagavad Gita Classes"}
+            >
+              <div className="flex items-center gap-2">
+                <ArrowLeftRight className="size-4" />
+                <span className="text-sm">
+                  {activePortal === "gita" ? "Yoga for Happiness" : "Bhagavad Gita Classes"}
+                </span>
+              </div>
+              {activePortal === "gita" ? <Leaf className="size-4" /> : <BookOpen className="size-4" />}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

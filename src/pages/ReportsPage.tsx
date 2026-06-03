@@ -6,14 +6,15 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { getEligibleReport, getInactiveReport, getPromotedReport, getStudentDetails, getYetToAttendTripReport } from "@/services/api"
-import type { EligibleReportItem, InactiveReportItem, PromotedReportItem, StudentDetailsResponse, StudentSessionDetail, YetToAttendTripReportItem } from "@/types"
+import { getEligibleReport, getInactiveReport, getPromotedReport, getStudentDetails, getYetToAttendTripReport, getYetToVolunteerReport } from "@/services/api"
+import type { EligibleReportItem, InactiveReportItem, PromotedReportItem, StudentDetailsResponse, StudentSessionDetail, YetToAttendTripReportItem, YetToVolunteerReportItem } from "@/types"
 import { format } from "date-fns"
 
 export default function ReportsPage() {
   const [inactive, setInactive] = useState<InactiveReportItem[]>([])
   const [eligible, setEligible] = useState<EligibleReportItem[]>([])
   const [yetToAttend, setYetToAttend] = useState<YetToAttendTripReportItem[]>([])
+  const [yetToVolunteer, setYetToVolunteer] = useState<YetToVolunteerReportItem[]>([])
   const [promoted, setPromoted] = useState<PromotedReportItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -25,11 +26,12 @@ export default function ReportsPage() {
   useEffect(() => {
     setLoading(true)
     setError(null)
-    Promise.all([getInactiveReport(), getEligibleReport(), getYetToAttendTripReport(), getPromotedReport()])
-      .then(([inactiveData, eligibleData, yetToAttendData, promotedData]) => {
+    Promise.all([getInactiveReport(), getEligibleReport(), getYetToAttendTripReport(), getYetToVolunteerReport(), getPromotedReport()])
+      .then(([inactiveData, eligibleData, yetToAttendData, yetToVolunteerData, promotedData]) => {
         setInactive(inactiveData)
         setEligible(eligibleData)
         setYetToAttend(yetToAttendData)
+        setYetToVolunteer(yetToVolunteerData)
         setPromoted(promotedData)
       })
       .catch((err) => {
@@ -94,6 +96,7 @@ export default function ReportsPage() {
     () => eligible.map((item) => [
       item.full_name,
       item.phone ? `\t${item.phone}` : "-",
+      String(item.attended_classes ?? "-"),
     ]),
     [eligible]
   )
@@ -112,8 +115,18 @@ export default function ReportsPage() {
     () => yetToAttend.map((item) => [
       item.full_name,
       item.phone ? `\t${item.phone}` : "-",
+      String(item.attended_classes ?? "-"),
     ]),
     [yetToAttend]
+  )
+
+  const yetToVolunteerRows = useMemo(
+    () => yetToVolunteer.map((item) => [
+      item.full_name,
+      item.phone ? `\t${item.phone}` : "-",
+      String(item.attended_classes ?? "-"),
+    ]),
+    [yetToVolunteer]
   )
 
   return (
@@ -142,6 +155,7 @@ export default function ReportsPage() {
               <TabsTrigger value="inactive">Inactive</TabsTrigger>
               <TabsTrigger value="eligible">Eligible for Volunteering</TabsTrigger>
               <TabsTrigger value="yet-to-attend">Yet to Attend Trip</TabsTrigger>
+              <TabsTrigger value="yet-to-volunteer">Yet to Volunteer</TabsTrigger>
               <TabsTrigger value="promoted">Promoted Students</TabsTrigger>
             </TabsList>
 
@@ -218,6 +232,7 @@ export default function ReportsPage() {
                       <TableRow>
                         <TableHead>Name</TableHead>
                         <TableHead>Phone No</TableHead>
+                        <TableHead>Classes Attended</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -229,6 +244,7 @@ export default function ReportsPage() {
                         >
                           <TableCell>{item.full_name}</TableCell>
                           <TableCell>{item.phone ?? "-"}</TableCell>
+                          <TableCell>{item.attended_classes ?? "-"}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -241,7 +257,7 @@ export default function ReportsPage() {
                   size="sm"
                   onClick={() => downloadCsv(
                     "eligible-volunteering.csv",
-                    [["Name", "Phone No"], ...eligibleRows]
+                    [["Name", "Phone No", "Classes Attended"], ...eligibleRows]
                   )}
                   disabled={loading || eligibleRows.length === 0}
                 >
@@ -269,6 +285,7 @@ export default function ReportsPage() {
                       <TableRow>
                         <TableHead>Name</TableHead>
                         <TableHead>Phone No</TableHead>
+                        <TableHead>Classes Attended</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -280,6 +297,7 @@ export default function ReportsPage() {
                         >
                           <TableCell>{item.full_name}</TableCell>
                           <TableCell>{item.phone ?? "-"}</TableCell>
+                          <TableCell>{item.attended_classes ?? "-"}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -292,9 +310,62 @@ export default function ReportsPage() {
                   size="sm"
                   onClick={() => downloadCsv(
                     "yet-to-attend-trip.csv",
-                    [["Name", "Phone No"], ...yetToAttendRows]
+                    [["Name", "Phone No", "Classes Attended"], ...yetToAttendRows]
                   )}
                   disabled={loading || yetToAttendRows.length === 0}
+                >
+                  <Download className="size-4" />
+                  Download Excel
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="yet-to-volunteer" className="mt-4">
+              <div className="max-h-96 overflow-y-auto rounded-md border border-border/60">
+                {loading ? (
+                  <div className="divide-y">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-4 px-6 py-4">
+                        <Skeleton className="h-4 w-40" />
+                      </div>
+                    ))}
+                  </div>
+                ) : yetToVolunteer.length === 0 ? (
+                  <div className="px-6 py-6 text-sm text-muted-foreground">All eligible students have volunteered.</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Phone No</TableHead>
+                        <TableHead>Classes Attended</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {yetToVolunteer.map((item) => (
+                        <TableRow
+                          key={item.id}
+                          className="cursor-pointer"
+                          onClick={() => openDetails(item.id)}
+                        >
+                          <TableCell>{item.full_name}</TableCell>
+                          <TableCell>{item.phone ?? "-"}</TableCell>
+                          <TableCell>{item.attended_classes ?? "-"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+              <div className="flex justify-end pt-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadCsv(
+                    "yet-to-volunteer.csv",
+                    [["Name", "Phone No", "Classes Attended"], ...yetToVolunteerRows]
+                  )}
+                  disabled={loading || yetToVolunteerRows.length === 0}
                 >
                   <Download className="size-4" />
                   Download Excel

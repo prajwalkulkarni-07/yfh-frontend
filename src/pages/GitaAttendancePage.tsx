@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from "react"
-import { useSearchParams } from "react-router-dom"
 import {
   CalendarDays,
   CheckCircle2,
@@ -17,13 +16,13 @@ import { Switch } from "@/components/ui/switch"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
-  getStudents,
-  getSessions,
-  markAttendance,
-  getAttendance,
-  createSession,
+  getGitaStudents,
+  getGitaSessions,
+  markGitaAttendance,
+  getGitaAttendance,
+  createGitaSession,
 } from "@/services/api"
-import type { AttendanceSession, Student } from "@/types"
+import type { GitaAttendanceSession, Student } from "@/types"
 import { format } from "date-fns"
 
 type AttendanceStatus = "present" | "absent"
@@ -33,42 +32,29 @@ interface AttendanceRow {
   status: AttendanceStatus
 }
 
-export default function AttendancePage() {
-  const [searchParams] = useSearchParams()
-  const fallbackDate = format(new Date(), "yyyy-MM-dd")
-  const queryDate = searchParams.get("date")
-  const defaultDate = queryDate && !Number.isNaN(new Date(queryDate).getTime())
-    ? queryDate
-    : fallbackDate
+function getLatestSundayKey() {
+  const date = new Date()
+  date.setHours(0, 0, 0, 0)
+  date.setDate(date.getDate() - date.getDay())
+  return format(date, "yyyy-MM-dd")
+}
 
-  const CLASS_ROTATION_START = "2026-05-31"
-  const CLASS_ROTATION_START_INDEX = 6
-  const CLASS_ROTATION = [
-    "Self Management",
-    "Yoga",
-    "Relationship",
-    "Karma",
-    "Diet For Happiness",
-    "Habits For Happiness",
-    "The Perfect Knowledge",
-    "The Real Freedom",
-  ]
-  const MS_PER_DAY = 24 * 60 * 60 * 1000
-
-  const [selectedDate, setSelectedDate] = useState(defaultDate)
+export default function GitaAttendancePage() {
+  const fallbackDate = getLatestSundayKey()
+  const [selectedDate, setSelectedDate] = useState(fallbackDate)
   const [rows, setRows] = useState<AttendanceRow[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [search, setSearch] = useState("")
-  const [sessions, setSessions] = useState<AttendanceSession[]>([])
+  const [sessions, setSessions] = useState<GitaAttendanceSession[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(true)
 
   const loadSessionList = useCallback(async () => {
     setSessionsLoading(true)
     try {
-      const data = await getSessions()
+      const data = await getGitaSessions()
       setSessions([...data].reverse())
     } catch {
       // ignore
@@ -87,8 +73,8 @@ export default function AttendancePage() {
     setSaved(false)
     try {
       const [allStudents, existingRecords] = await Promise.all([
-        getStudents(),
-        getAttendance({ class_date: date }).catch(() => []),
+        getGitaStudents(),
+        getGitaAttendance({ session_date: date }).catch(() => []),
       ])
 
       const newRows: AttendanceRow[] = allStudents.map((student) => {
@@ -125,9 +111,8 @@ export default function AttendancePage() {
     setError(null)
     setSaved(false)
     try {
-      // Ensure a session exists for this date
-      await createSession(selectedDate).catch(() => {})
-      await markAttendance(
+      await createGitaSession(selectedDate).catch(() => {})
+      await markGitaAttendance(
         selectedDate,
         rows.map((r) => ({ student_id: r.student.id, status: r.status }))
       )
@@ -160,26 +145,11 @@ export default function AttendancePage() {
     return Number.isNaN(dateObj.getTime()) ? null : dateObj
   }
 
-  const getSessionNameForDate = (value: string | null | undefined) => {
-    if (!value) return null
-    const dateOnly = value.split("T")[0]
-    const dateObj = new Date(`${dateOnly}T00:00:00Z`)
-    if (Number.isNaN(dateObj.getTime()) || dateObj.getUTCDay() !== 0) return null
-    const start = new Date(`${CLASS_ROTATION_START}T00:00:00Z`)
-    const diffDays = Math.floor((dateObj.getTime() - start.getTime()) / MS_PER_DAY)
-    if (diffDays % 7 !== 0) return null
-    const weeksOffset = diffDays / 7
-    const index =
-      ((weeksOffset + CLASS_ROTATION_START_INDEX) % CLASS_ROTATION.length +
-        CLASS_ROTATION.length) %
-      CLASS_ROTATION.length
-    return CLASS_ROTATION[index]
-  }
-
-  const sessionName = getSessionNameForDate(selectedDate)
   const selectedDateObj = toSessionDate(selectedDate) ?? new Date()
   const today = new Date()
   today.setHours(0, 0, 0, 0)
+
+  const isSunday = (date: Date) => date.getDay() === 0
 
   const toDateKey = (date: Date) => format(date, "yyyy-MM-dd")
   const getNextSunday = (date: Date) => {
@@ -191,17 +161,17 @@ export default function AttendancePage() {
     return result
   }
 
-  const generateUpcomingSessions = (count: number) => {
+  const generateUpcomingSessions = (count: number): GitaAttendanceSession[] => {
     const start = new Date(today)
     start.setDate(start.getDate() + 1)
     let cursor = getNextSunday(start)
-    const upcoming: AttendanceSession[] = []
+    const upcoming: GitaAttendanceSession[] = []
     while (upcoming.length < count) {
-      const class_date = toDateKey(cursor)
+      const session_date = toDateKey(cursor)
       upcoming.push({
-        id: `future-${class_date}`,
-        class_date,
-        class_name: getSessionNameForDate(class_date) ?? undefined,
+        id: `future-${session_date}`,
+        session_date,
+        day_of_week: "Sunday",
       })
       cursor = getNextSunday(new Date(cursor.getTime() + 24 * 60 * 60 * 1000))
     }
@@ -211,20 +181,19 @@ export default function AttendancePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Attendance</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Bhagavad Gita Attendance</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Mark and manage attendance for each session
+          Mark attendance for Sunday sessions
         </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main attendance area */}
         <div className="lg:col-span-2 space-y-4">
           <Card>
             <CardHeader>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="space-y-1.5">
-                  <Label htmlFor="session-date">Session Date</Label>
+                  <Label htmlFor="session-date">Session Date (Sunday only)</Label>
                   <div className="flex flex-wrap items-center gap-3">
                     <Popover>
                       <PopoverTrigger asChild>
@@ -241,7 +210,7 @@ export default function AttendancePage() {
                         <Calendar
                           mode="single"
                           selected={selectedDateObj}
-                          disabled={(date) => date > today}
+                          disabled={(date) => date > today || !isSunday(date)}
                           onSelect={(date) => {
                             if (!date) return
                             setSelectedDate(format(date, "yyyy-MM-dd"))
@@ -250,13 +219,13 @@ export default function AttendancePage() {
                         />
                       </PopoverContent>
                     </Popover>
-                    {sessionName ? (
-                      <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                        Session: {sessionName}
+                    {isSunday(selectedDateObj) ? (
+                      <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        Sunday Session
                       </div>
                     ) : (
                       <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground">
-                        No session scheduled
+                        Select a Sunday
                       </div>
                     )}
                   </div>
@@ -264,11 +233,11 @@ export default function AttendancePage() {
                 {!loading && rows.length > 0 && (
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <span className="font-semibold text-primary">{presentCount}</span> present
+                      <span className="font-semibold text-emerald-600">{presentCount}</span> present
                     </div>
                     <Separator orientation="vertical" className="h-4" />
                     <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <span className="font-semibold text-destructive">{absentCount}</span> absent
+                      <span className="font-semibold text-red-600">{absentCount}</span> absent
                     </div>
                   </div>
                 )}
@@ -309,9 +278,9 @@ export default function AttendancePage() {
               ) : rows.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <CalendarDays className="size-12 text-muted-foreground/30 mb-4" />
-                  <p className="text-sm font-medium text-foreground">No students found</p>
+                  <p className="text-sm font-medium text-foreground">No promoted students found</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Add students to mark attendance.
+                    Promote students in Yoga for Happiness to add them here.
                   </p>
                 </div>
               ) : filteredRows.length === 0 ? (
@@ -329,7 +298,7 @@ export default function AttendancePage() {
                       key={student.id}
                       className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg border transition-all text-left ${
                         status === "present"
-                          ? "border-primary/30 bg-primary/5 hover:bg-primary/10"
+                          ? "border-emerald-400/40 bg-emerald-50/60 hover:bg-emerald-100/60"
                           : "border-border bg-muted/20 hover:bg-muted/50"
                       }`}
                     >
@@ -339,11 +308,6 @@ export default function AttendancePage() {
                       <span className="flex-1 text-sm font-medium text-foreground truncate">
                         {student.full_name}
                       </span>
-                      {!student.active && (
-                        <span className="text-[0.65rem] uppercase tracking-wide text-muted-foreground border border-border/60 px-2 py-0.5 rounded-full">
-                          Inactive
-                        </span>
-                      )}
                       <div className="flex items-center gap-3">
                         <Switch
                           checked={status === "present"}
@@ -383,19 +347,16 @@ export default function AttendancePage() {
           </Card>
         </div>
 
-        {/* Sessions sidebar */}
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Upcoming Sessions</CardTitle>
+              <CardTitle className="text-base">Upcoming Sundays</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y">
                 {generateUpcomingSessions(4).map((session) => {
-                  const d = toSessionDate(session.class_date)
+                  const d = toSessionDate(session.session_date)
                   if (!d) return null
-                  const sessionLabel = session.class_name ?? getSessionNameForDate(session.class_date)
-                  const dow = format(d, "EEEE")
                   return (
                     <button
                       key={session.id}
@@ -410,9 +371,7 @@ export default function AttendancePage() {
                         <p className="text-sm font-medium text-foreground">
                           {format(d, "MMM d, yyyy")}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          {dow}{sessionLabel ? ` · ${sessionLabel}` : ""}
-                        </p>
+                        <p className="text-xs text-muted-foreground">Sunday</p>
                       </div>
                     </button>
                   )
@@ -440,32 +399,28 @@ export default function AttendancePage() {
               ) : (
                 <div className="divide-y">
                   {sessions.filter((session) => {
-                    const d = toSessionDate(session.class_date)
+                    const d = toSessionDate(session.session_date)
                     return d && d <= today
                   }).slice(0, 4).map((session) => {
-                    const d = toSessionDate(session.class_date)
+                    const d = toSessionDate(session.session_date)
                     if (!d) return null
-                    const sessionLabel = session.class_name ?? getSessionNameForDate(session.class_date)
-                    const isSelected = session.class_date === selectedDate
-                    const dow = format(d, "EEEE")
+                    const isSelected = session.session_date === selectedDate
                     return (
                       <button
                         key={session.id}
-                        onClick={() => setSelectedDate(session.class_date)}
+                        onClick={() => setSelectedDate(session.session_date)}
                         className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40 ${
-                          isSelected ? "bg-primary/5" : ""
+                          isSelected ? "bg-emerald-50" : ""
                         }`}
                       >
-                        <div className={`flex items-center justify-center size-8 rounded-md shrink-0 ${isSelected ? "bg-primary/15" : "bg-muted"}`}>
-                          <CalendarDays className={`size-4 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+                        <div className={`flex items-center justify-center size-8 rounded-md shrink-0 ${isSelected ? "bg-emerald-100" : "bg-muted"}`}>
+                          <CalendarDays className={`size-4 ${isSelected ? "text-emerald-700" : "text-muted-foreground"}`} />
                         </div>
                         <div>
-                          <p className={`text-sm font-medium ${isSelected ? "text-primary" : "text-foreground"}`}>
+                          <p className={`text-sm font-medium ${isSelected ? "text-emerald-700" : "text-foreground"}`}>
                             {format(d, "MMM d, yyyy")}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {dow}{sessionLabel ? ` · ${sessionLabel}` : ""}
-                          </p>
+                          <p className="text-xs text-muted-foreground">Sunday</p>
                         </div>
                       </button>
                     )

@@ -5,6 +5,8 @@ export interface User {
   role?: string
 }
 
+export type PortalType = "yfh" | "gita"
+
 export interface Student {
   id: string
   full_name: string
@@ -32,17 +34,34 @@ export interface StudentSessionDetail {
   attended_on?: string | null
 }
 
+export interface StudentTripDetail {
+  trip_date?: string | null
+  details?: string | null
+  recorded_at?: string | null
+}
+
+export interface StudentVolunteerDetail {
+  service_date?: string | null
+  details?: string | null
+  recorded_at?: string | null
+}
+
+export interface PromotionStatus {
+  promoted: boolean
+  attended_classes: number
+  total_classes: number
+  attended_trips: number
+  volunteered_times: number
+  missing: string[]
+  summary: string
+}
+
 export interface StudentDetailsResponse {
   student: Student
   sessions: StudentSessionDetail[]
-  trip_info?: {
-    last_attended_trip_date?: string | null
-    last_attended_trip_details?: string | null
-    next_trip_date?: string | null
-    next_trip_details?: string | null
-    has_attended_trip: boolean
-    has_upcoming_trip: boolean
-  }
+  trips?: StudentTripDetail[]
+  volunteering?: StudentVolunteerDetail[]
+  promotion_status?: PromotionStatus
 }
 
 export interface AttendanceSession {
@@ -50,6 +69,13 @@ export interface AttendanceSession {
   class_date: string
   class_id?: string
   class_name?: string
+  created_at?: string
+}
+
+export interface GitaAttendanceSession {
+  id: string
+  session_date: string
+  day_of_week?: string
   created_at?: string
 }
 
@@ -64,7 +90,21 @@ export interface AttendanceEntry {
   student_id: string
   student?: Student
   status: "present" | "absent"
-  class_date: string
+  class_date?: string
+  session_date?: string
+}
+
+export interface GitaAttendanceEntry {
+  id: string
+  session_id: string
+  student_id: string
+  status: "present" | "absent"
+  session_date: string
+}
+
+export interface GitaAttendanceRow {
+  session_date: string
+  status: "present" | "absent"
 }
 
 export interface AttendanceSummaryItem {
@@ -103,6 +143,14 @@ export interface YetToAttendTripReportItem {
   id: string
   full_name: string
   phone: string
+  attended_classes?: number
+}
+
+export interface YetToVolunteerReportItem {
+  id: string
+  full_name: string
+  phone: string
+  attended_classes?: number
 }
 
 export interface TripParticipant {
@@ -119,6 +167,21 @@ export interface Trip {
   participant_count?: number
   participants?: TripParticipant[]
   is_locked?: boolean
+}
+
+export interface VolunteeringParticipant {
+  id: string
+  full_name: string
+  phone?: string | null
+}
+
+export interface VolunteeringService {
+  id: string
+  service_date: string
+  details?: string | null
+  created_at?: string
+  participant_count?: number
+  participants?: VolunteeringParticipant[]
 }
 
 export interface ApiError {

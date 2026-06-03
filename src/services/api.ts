@@ -8,9 +8,12 @@ import type {
   EligibleReportItem,
   PromotedReportItem,
   YetToAttendTripReportItem,
+  YetToVolunteerReportItem,
   StudentDetailsResponse,
   Trip,
+  VolunteeringService,
   User,
+  GitaAttendanceSession,
 } from "@/types"
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
@@ -41,6 +44,7 @@ async function request<T>(
   if (res.status === 401) {
     localStorage.removeItem("yoga_token")
     localStorage.removeItem("yoga_user")
+    localStorage.removeItem("yoga_portal")
     if (!isLoginRequest) {
       window.location.href = "/login"
     }
@@ -236,6 +240,62 @@ export async function getYetToAttendTripReport(): Promise<YetToAttendTripReportI
   return request("/api/reports/yet-to-attend-trip")
 }
 
+// Bhagavad Gita portal
+export async function getGitaStudents(): Promise<Student[]> {
+  return request("/api/gita/students")
+}
+
+export async function getGitaStudent(id: string): Promise<Student> {
+  return request(`/api/gita/students/${id}`)
+}
+
+export async function getGitaStudentAttendance(
+  id: string
+): Promise<Array<{ session_date: string; status: "present" | "absent" }>> {
+  return request(`/api/gita/students/${id}/attendance`)
+}
+
+export async function createGitaSession(sessionDate: string): Promise<GitaAttendanceSession> {
+  return request("/api/gita/attendance/sessions", {
+    method: "POST",
+    body: JSON.stringify({ session_date: sessionDate }),
+  })
+}
+
+export async function getGitaSessions(
+  from?: string,
+  to?: string
+): Promise<GitaAttendanceSession[]> {
+  const params = new URLSearchParams()
+  if (from) params.set("from", from)
+  if (to) params.set("to", to)
+  const query = params.toString() ? `?${params}` : ""
+  return request(`/api/gita/attendance/sessions${query}`)
+}
+
+export async function markGitaAttendance(
+  sessionDate: string,
+  records: AttendanceRecord[]
+): Promise<void> {
+  return request("/api/gita/attendance/mark", {
+    method: "POST",
+    body: JSON.stringify({ session_date: sessionDate, records }),
+  })
+}
+
+export async function getGitaAttendance(
+  params: { session_date?: string; session_id?: string }
+): Promise<AttendanceEntry[]> {
+  const query = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined) as [string, string][]
+  )
+  return request(`/api/gita/attendance?${query}`)
+}
+
+export async function getYetToVolunteerReport(): Promise<YetToVolunteerReportItem[]> {
+  return request("/api/reports/yet-to-volunteer")
+}
+
 // Trips
 export async function getTrips(): Promise<Trip[]> {
   return request("/api/trips")
@@ -255,16 +315,51 @@ export async function createTrip(
 export async function updateTripParticipants(
   tripId: string,
   studentIds: string[],
-  details?: string
+  details?: string,
+  tripDate?: string
 ): Promise<{ id: string; participant_count: number }> {
   return request(`/api/trips/${tripId}`, {
     method: "PUT",
-    body: JSON.stringify({ student_ids: studentIds, details }),
+    body: JSON.stringify({ student_ids: studentIds, details, trip_date: tripDate }),
   })
 }
 
 export async function deleteTrip(tripId: string): Promise<void> {
   return request(`/api/trips/${tripId}`, {
+    method: "DELETE",
+  })
+}
+
+// Volunteering
+export async function getVolunteeringServices(): Promise<VolunteeringService[]> {
+  return request("/api/volunteering")
+}
+
+export async function createVolunteeringService(
+  serviceDate: string,
+  studentIds: string[],
+  details?: string
+): Promise<VolunteeringService> {
+  return request("/api/volunteering", {
+    method: "POST",
+    body: JSON.stringify({ service_date: serviceDate, student_ids: studentIds, details }),
+  })
+}
+
+export async function updateVolunteeringServiceParticipants(
+  serviceId: string,
+  studentIds: string[],
+  details?: string,
+  serviceDate?: string
+): Promise<{ id: string; participant_count: number }> {
+  return request(`/api/volunteering/${serviceId}`, {
+    method: "PUT",
+    body: JSON.stringify({ student_ids: studentIds, details, service_date: serviceDate }),
+  })
+}
+
+export async function deleteVolunteeringService(serviceId: string): Promise<void> {
+  return request(`/api/volunteering/${serviceId}`, {
     method: "DELETE",
   })
 }

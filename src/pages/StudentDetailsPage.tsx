@@ -104,13 +104,9 @@ export default function StudentDetailsPage() {
     return details?.sessions ?? []
   }, [details])
 
-  const tripInfo = details?.trip_info
-  const hasAttendedTrip = tripInfo?.has_attended_trip
-  const hasUpcomingTrip = tripInfo?.has_upcoming_trip
-  const attendedTripDate = tripInfo?.last_attended_trip_date
-  const attendedTripDetails = tripInfo?.last_attended_trip_details
-  const upcomingTripDate = tripInfo?.next_trip_date
-  const upcomingTripDetails = tripInfo?.next_trip_details
+  const promotionStatus = details?.promotion_status
+  const tripHistory = details?.trips ?? []
+  const volunteeringHistory = details?.volunteering ?? []
 
   const formatDate = (value: string | null | undefined) => {
     if (!value) return "-"
@@ -425,27 +421,30 @@ export default function StudentDetailsPage() {
                 </>
               )}
               <div className="space-y-2 sm:col-span-2">
-                <Label>Trip Attendance</Label>
+                <Label>Promotion Status</Label>
                 <div className="rounded-md border border-border/60 px-3 py-2 text-sm">
-                  {hasAttendedTrip === undefined ? (
-                    <span className="text-muted-foreground">No trip data yet</span>
-                  ) : hasAttendedTrip ? (
-                    <span className="text-emerald-600 font-medium">Attended a trip</span>
+                  {!promotionStatus ? (
+                    <span className="text-muted-foreground">No promotion data yet</span>
+                  ) : promotionStatus.promoted ? (
+                    <span className="font-medium text-blue-700 dark:text-blue-300">Promoted</span>
                   ) : (
-                    <span className="text-red-600 font-medium">Yet to attend a trip</span>
+                    <span className="font-medium text-muted-foreground">{promotionStatus.summary}</span>
                   )}
-                  {hasAttendedTrip && attendedTripDate && (
+                  {promotionStatus && !promotionStatus.promoted && promotionStatus.missing.length > 0 && (
                     <div className="text-xs text-muted-foreground mt-2 space-y-1">
-                      <div>Trip date: {formatDate(attendedTripDate)}</div>
-                      {attendedTripDetails ? <div>Trip: {attendedTripDetails}</div> : null}
+                      {promotionStatus.missing.map((item) => (
+                        <div key={item}>{item}</div>
+                      ))}
                     </div>
                   )}
-                  {!hasAttendedTrip && hasUpcomingTrip && upcomingTripDate && (
+                  {promotionStatus && promotionStatus.promoted && (
                     <div className="text-xs text-muted-foreground mt-2 space-y-1">
-                      <div>Upcoming trip date: {formatDate(upcomingTripDate)}</div>
-                      {upcomingTripDetails ? (
-                        <div>Upcoming trip: {upcomingTripDetails}</div>
-                      ) : null}
+                      <div>
+                        Completed {promotionStatus.attended_classes}/{promotionStatus.total_classes} classes
+                      </div>
+                      <div>
+                        Trips: {promotionStatus.attended_trips}, Volunteering: {promotionStatus.volunteered_times}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -461,6 +460,78 @@ export default function StudentDetailsPage() {
               </div>
             </div>
           ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Trip History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-8 w-full rounded-md bg-muted" />
+              ))}
+            </div>
+          ) : tripHistory.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Yet to attend a trip.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Trip Date</TableHead>
+                  <TableHead>Details</TableHead>
+                  <TableHead>Recorded On</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tripHistory.map((row) => (
+                  <TableRow key={`${row.trip_date ?? "trip"}-${row.recorded_at ?? "recorded"}`}>
+                    <TableCell>{formatDate(row.trip_date)}</TableCell>
+                    <TableCell>{row.details ?? "-"}</TableCell>
+                    <TableCell>{formatDate(row.recorded_at)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Volunteering History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-8 w-full rounded-md bg-muted" />
+              ))}
+            </div>
+          ) : volunteeringHistory.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Yet to volunteer.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Service Date</TableHead>
+                  <TableHead>Details</TableHead>
+                  <TableHead>Recorded On</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {volunteeringHistory.map((row) => (
+                  <TableRow key={`${row.service_date ?? "service"}-${row.recorded_at ?? "recorded"}`}>
+                    <TableCell>{formatDate(row.service_date)}</TableCell>
+                    <TableCell>{row.details ?? "-"}</TableCell>
+                    <TableCell>{formatDate(row.recorded_at)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
