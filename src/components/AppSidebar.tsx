@@ -8,7 +8,6 @@ import {
   HandHeart,
   Leaf,
   LogOut,
-  Settings,
   BookOpen,
   ArrowLeftRight,
 } from "lucide-react"
@@ -25,12 +24,6 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import { useAuth } from "@/hooks/useAuth"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 type NavItem = {
@@ -135,35 +128,33 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent">
-                  <Avatar className="size-7 rounded-lg">
-                    <AvatarFallback className="rounded-lg bg-primary/15 text-primary text-xs font-semibold">
-                      {initials}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col leading-none min-w-0">
-                    <span className="text-sm font-medium truncate">
-                      {user?.name || user?.email || "Admin"}
-                    </span>
-                    <span className="text-xs text-muted-foreground truncate">
-                      {user?.email}
-                    </span>
-                  </div>
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" align="start" className="w-48">
-                <DropdownMenuItem onClick={() => navigate("/settings")}>
-                  <Settings className="size-4" />
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
-                  <LogOut className="size-4" />
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <SidebarMenuButton asChild size="lg" className="cursor-default hover:bg-transparent hover:text-sidebar-foreground">
+              <div>
+                <Avatar className="size-7 rounded-lg">
+                  <AvatarFallback className="rounded-lg bg-primary/15 text-primary text-xs font-semibold">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col leading-none min-w-0">
+                  <span className="text-sm font-medium truncate">
+                    {user?.name || user?.email || "Admin"}
+                  </span>
+                  <span className="text-xs text-muted-foreground truncate">
+                    {user?.email}
+                  </span>
+                </div>
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={handleSignOut}
+              tooltip="Sign out"
+              className="text-destructive hover:text-destructive focus:text-destructive"
+            >
+              <LogOut />
+              <span>Sign out</span>
+            </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

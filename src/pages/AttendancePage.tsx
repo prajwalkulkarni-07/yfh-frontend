@@ -33,13 +33,17 @@ interface AttendanceRow {
   status: AttendanceStatus
 }
 
+function getLatestSundayKey() {
+  const date = new Date()
+  date.setHours(0, 0, 0, 0)
+  date.setDate(date.getDate() - date.getDay())
+  return format(date, "yyyy-MM-dd")
+}
+
 export default function AttendancePage() {
   const [searchParams] = useSearchParams()
-  const fallbackDate = format(new Date(), "yyyy-MM-dd")
+  const fallbackDate = getLatestSundayKey()
   const queryDate = searchParams.get("date")
-  const defaultDate = queryDate && !Number.isNaN(new Date(queryDate).getTime())
-    ? queryDate
-    : fallbackDate
 
   const CLASS_ROTATION_START = "2026-05-31"
   const CLASS_ROTATION_START_INDEX = 6
@@ -54,6 +58,22 @@ export default function AttendancePage() {
     "The Real Freedom",
   ]
   const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+  const toSessionDate = (value: string | null | undefined) => {
+    if (!value) return null
+    const dateOnly = value.split("T")[0]
+    const dateObj = new Date(`${dateOnly}T00:00:00`)
+    return Number.isNaN(dateObj.getTime()) ? null : dateObj
+  }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const isSunday = (date: Date) => date.getDay() === 0
+  const queryDateObj = toSessionDate(queryDate)
+  const defaultDate = queryDateObj && isSunday(queryDateObj) && queryDateObj <= today
+    ? format(queryDateObj, "yyyy-MM-dd")
+    : fallbackDate
 
   const [selectedDate, setSelectedDate] = useState(defaultDate)
   const [rows, setRows] = useState<AttendanceRow[]>([])
@@ -121,6 +141,14 @@ export default function AttendancePage() {
   }
 
   async function handleSave() {
+    if (!isSunday(selectedDateObj)) {
+      setError("Yoga for Happiness sessions are only on Sundays")
+      return
+    }
+    if (selectedDateObj > today) {
+      setError("Attendance cannot be taken for a future session")
+      return
+    }
     setSaving(true)
     setError(null)
     setSaved(false)
@@ -153,13 +181,6 @@ export default function AttendancePage() {
   const presentCount = filteredRows.filter((r) => r.status === "present").length
   const absentCount = filteredRows.filter((r) => r.status === "absent").length
 
-  const toSessionDate = (value: string | null | undefined) => {
-    if (!value) return null
-    const dateOnly = value.split("T")[0]
-    const dateObj = new Date(`${dateOnly}T00:00:00`)
-    return Number.isNaN(dateObj.getTime()) ? null : dateObj
-  }
-
   const getSessionNameForDate = (value: string | null | undefined) => {
     if (!value) return null
     const dateOnly = value.split("T")[0]
@@ -178,8 +199,6 @@ export default function AttendancePage() {
 
   const sessionName = getSessionNameForDate(selectedDate)
   const selectedDateObj = toSessionDate(selectedDate) ?? new Date()
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
 
   const toDateKey = (date: Date) => format(date, "yyyy-MM-dd")
   const getNextSunday = (date: Date) => {
@@ -224,7 +243,7 @@ export default function AttendancePage() {
             <CardHeader>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="space-y-1.5">
-                  <Label htmlFor="session-date">Session Date</Label>
+                  <Label htmlFor="session-date">Session Date (Sunday only)</Label>
                   <div className="flex flex-wrap items-center gap-3">
                     <Popover>
                       <PopoverTrigger asChild>
@@ -241,7 +260,7 @@ export default function AttendancePage() {
                         <Calendar
                           mode="single"
                           selected={selectedDateObj}
-                          disabled={(date) => date > today}
+                          disabled={(date) => date > today || !isSunday(date)}
                           onSelect={(date) => {
                             if (!date) return
                             setSelectedDate(format(date, "yyyy-MM-dd"))
@@ -250,15 +269,9 @@ export default function AttendancePage() {
                         />
                       </PopoverContent>
                     </Popover>
-                    {sessionName ? (
-                      <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                        Session: {sessionName}
-                      </div>
-                    ) : (
-                      <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground">
-                        No session scheduled
-                      </div>
-                    )}
+                    <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                      Session: {sessionName ?? "Sunday"}
+                    </div>
                   </div>
                 </div>
                 {!loading && rows.length > 0 && (

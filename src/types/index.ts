@@ -32,6 +32,7 @@ export interface StudentSessionDetail {
   order_index?: number
   status: "present" | "absent"
   attended_on?: string | null
+  attended_dates?: string[]
 }
 
 export interface StudentTripDetail {
@@ -151,6 +152,37 @@ export interface YetToVolunteerReportItem {
   full_name: string
   phone: string
   attended_classes?: number
+}
+
+export interface ClassReportStudent {
+  id: string
+  full_name: string
+  phone?: string | null
+}
+
+export interface ClassReportItem {
+  class_id: string
+  class_name: string
+  order_index: number
+  students: ClassReportStudent[]
+}
+
+export interface AllStudentsReportClass {
+  class_id: string
+  class_name: string
+  order_index: number
+  status: "Attended" | "Not Attended"
+}
+
+export interface AllStudentsReportItem {
+  id: string
+  full_name: string
+  phone?: string | null
+  classes: AllStudentsReportClass[]
+  trip: "Attended" | "Not Attended"
+  volunteering: "Done" | "Not Done"
+  activity_status: "Active" | "Inactive"
+  promotion_status: "Promoted" | "Not Promoted"
 }
 
 export interface TripParticipant {

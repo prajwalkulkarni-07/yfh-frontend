@@ -9,6 +9,8 @@ import type {
   PromotedReportItem,
   YetToAttendTripReportItem,
   YetToVolunteerReportItem,
+  ClassReportItem,
+  AllStudentsReportItem,
   StudentDetailsResponse,
   Trip,
   VolunteeringService,
@@ -238,6 +240,14 @@ export async function getPromotedReport(): Promise<PromotedReportItem[]> {
 
 export async function getYetToAttendTripReport(): Promise<YetToAttendTripReportItem[]> {
   return request("/api/reports/yet-to-attend-trip")
+}
+
+export async function getClassReport(): Promise<ClassReportItem[]> {
+  return request("/api/reports/by-class")
+}
+
+export async function getAllStudentsReport(): Promise<AllStudentsReportItem[]> {
+  return request("/api/reports/all-students")
 }
 
 // Bhagavad Gita portal

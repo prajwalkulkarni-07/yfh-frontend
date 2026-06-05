@@ -115,6 +115,11 @@ export default function StudentDetailsPage() {
     return format(dateObj, "MMM d, yyyy")
   }
 
+  const formatAttendanceDates = (row: StudentSessionDetail) => {
+    const dates = row.attended_dates?.length ? row.attended_dates : row.attended_on ? [row.attended_on] : []
+    return dates.length > 0 ? dates.map(formatDate).join(", ") : "-"
+  }
+
   const handleSave = async () => {
     if (!id) return
     if (!formData.full_name.trim()) {
@@ -430,23 +435,6 @@ export default function StudentDetailsPage() {
                   ) : (
                     <span className="font-medium text-muted-foreground">{promotionStatus.summary}</span>
                   )}
-                  {promotionStatus && !promotionStatus.promoted && promotionStatus.missing.length > 0 && (
-                    <div className="text-xs text-muted-foreground mt-2 space-y-1">
-                      {promotionStatus.missing.map((item) => (
-                        <div key={item}>{item}</div>
-                      ))}
-                    </div>
-                  )}
-                  {promotionStatus && promotionStatus.promoted && (
-                    <div className="text-xs text-muted-foreground mt-2 space-y-1">
-                      <div>
-                        Completed {promotionStatus.attended_classes}/{promotionStatus.total_classes} classes
-                      </div>
-                      <div>
-                        Trips: {promotionStatus.attended_trips}, Volunteering: {promotionStatus.volunteered_times}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
               {formError && (
@@ -569,7 +557,7 @@ export default function StudentDetailsPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {row.status === "present" ? formatDate(row.attended_on) : "-"}
+                      {row.status === "present" ? formatAttendanceDates(row) : "-"}
                     </TableCell>
                   </TableRow>
                 ))}

@@ -95,23 +95,25 @@ export default function StudentsPage() {
     fetchStudents()
   }, [fetchStudents])
 
-  const filtered = students.filter((s) => {
-    const q = search.toLowerCase()
-    const promoted = (s.level ?? 1) >= 2
-    if (statusFilter === "active" && (!s.active || promoted)) return false
-    if (statusFilter === "inactive" && (s.active || promoted)) return false
-    if (statusFilter === "promoted" && !promoted) return false
-    return (
-      s.full_name.toLowerCase().includes(q) ||
-      (s.phone?.includes(q) ?? false) ||
-      (s.college_name?.toLowerCase().includes(q) ?? false) ||
-      (s.branch?.toLowerCase().includes(q) ?? false) ||
-      String(s.semester ?? "").includes(q) ||
-      (s.company_name?.toLowerCase().includes(q) ?? false) ||
-      (s.designation?.toLowerCase().includes(q) ?? false) ||
-      String(s.experience ?? "").includes(q)
-    )
-  })
+  const filtered = students
+    .filter((s) => {
+      const q = search.toLowerCase()
+      const promoted = (s.level ?? 1) >= 2
+      if (statusFilter === "active" && (!s.active || promoted)) return false
+      if (statusFilter === "inactive" && (s.active || promoted)) return false
+      if (statusFilter === "promoted" && !promoted) return false
+      return (
+        s.full_name.toLowerCase().includes(q) ||
+        (s.phone?.includes(q) ?? false) ||
+        (s.college_name?.toLowerCase().includes(q) ?? false) ||
+        (s.branch?.toLowerCase().includes(q) ?? false) ||
+        String(s.semester ?? "").includes(q) ||
+        (s.company_name?.toLowerCase().includes(q) ?? false) ||
+        (s.designation?.toLowerCase().includes(q) ?? false) ||
+        String(s.experience ?? "").includes(q)
+      )
+    })
+    .sort((a, b) => a.full_name.localeCompare(b.full_name, undefined, { sensitivity: "base" }))
 
   function openAdd() {
     setFormData(EMPTY_FORM)

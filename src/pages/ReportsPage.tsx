@@ -6,8 +6,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { getEligibleReport, getInactiveReport, getPromotedReport, getStudentDetails, getYetToAttendTripReport, getYetToVolunteerReport } from "@/services/api"
-import type { EligibleReportItem, InactiveReportItem, PromotedReportItem, StudentDetailsResponse, StudentSessionDetail, YetToAttendTripReportItem, YetToVolunteerReportItem } from "@/types"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { getAllStudentsReport, getClassReport, getEligibleReport, getInactiveReport, getPromotedReport, getStudentDetails, getYetToAttendTripReport, getYetToVolunteerReport } from "@/services/api"
+import type { AllStudentsReportItem, ClassReportItem, EligibleReportItem, InactiveReportItem, PromotedReportItem, StudentDetailsResponse, StudentSessionDetail, YetToAttendTripReportItem, YetToVolunteerReportItem } from "@/types"
 import { format } from "date-fns"
 
 export default function ReportsPage() {
@@ -15,7 +16,10 @@ export default function ReportsPage() {
   const [eligible, setEligible] = useState<EligibleReportItem[]>([])
   const [yetToAttend, setYetToAttend] = useState<YetToAttendTripReportItem[]>([])
   const [yetToVolunteer, setYetToVolunteer] = useState<YetToVolunteerReportItem[]>([])
+  const [classReport, setClassReport] = useState<ClassReportItem[]>([])
+  const [selectedClassId, setSelectedClassId] = useState("")
   const [promoted, setPromoted] = useState<PromotedReportItem[]>([])
+  const [allStudents, setAllStudents] = useState<AllStudentsReportItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -26,13 +30,24 @@ export default function ReportsPage() {
   useEffect(() => {
     setLoading(true)
     setError(null)
-    Promise.all([getInactiveReport(), getEligibleReport(), getYetToAttendTripReport(), getYetToVolunteerReport(), getPromotedReport()])
-      .then(([inactiveData, eligibleData, yetToAttendData, yetToVolunteerData, promotedData]) => {
+    Promise.all([
+      getInactiveReport(),
+      getEligibleReport(),
+      getYetToAttendTripReport(),
+      getYetToVolunteerReport(),
+      getClassReport(),
+      getPromotedReport(),
+      getAllStudentsReport(),
+    ])
+      .then(([inactiveData, eligibleData, yetToAttendData, yetToVolunteerData, classReportData, promotedData, allStudentsData]) => {
         setInactive(inactiveData)
         setEligible(eligibleData)
         setYetToAttend(yetToAttendData)
         setYetToVolunteer(yetToVolunteerData)
+        setClassReport(classReportData)
+        setSelectedClassId((current) => current || classReportData[0]?.class_id || "")
         setPromoted(promotedData)
+        setAllStudents(allStudentsData)
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : "Failed to load reports")
@@ -45,6 +60,11 @@ export default function ReportsPage() {
     const dateObj = new Date(value.includes("T") ? value : `${value}T00:00:00`)
     if (Number.isNaN(dateObj.getTime())) return "-"
     return format(dateObj, "MMM d, yyyy")
+  }
+
+  const formatAttendanceDates = (row: StudentSessionDetail) => {
+    const dates = row.attended_dates?.length ? row.attended_dates : row.attended_on ? [row.attended_on] : []
+    return dates.length > 0 ? dates.map(formatDate).join(", ") : "-"
   }
 
   const openDetails = async (studentId: string) => {
@@ -61,33 +81,56 @@ export default function ReportsPage() {
     }
   }
 
-  const toCsv = (rows: string[][]) => {
-    const escapeCell = (cell: string) => {
-      const safe = String(cell ?? "")
-      if (safe.includes("\"") || safe.includes(",") || safe.includes("\n")) {
-        return `"${safe.replace(/"/g, '""')}"`
-      }
-      return safe
-    }
-    return rows.map((row) => row.map(escapeCell).join(",")).join("\n")
+  const escapeHtml = (value: string) => {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
   }
 
-  const downloadCsv = (filename: string, rows: string[][]) => {
-    const blob = new Blob([toCsv(rows)], { type: "text/csv;charset=utf-8;" })
+  const downloadExcel = (filename: string, rows: string[][]) => {
+    const excelFilename = filename.replace(/\.(csv|xlsx?)$/i, "") + ".xls"
+    const tableRows = rows
+      .map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`)
+      .join("")
+    const html = `<!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            table { border-collapse: collapse; }
+            td { border: 1px solid #d9cba6; padding: 6px; mso-number-format:"\\@"; }
+          </style>
+        </head>
+        <body><table>${tableRows}</table></body>
+      </html>`
+    const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = filename
+    link.download = excelFilename
     link.click()
     URL.revokeObjectURL(url)
   }
+
+  const getStatusClass = (value: string) =>
+    ["Active", "Attended", "Done", "Promoted"].includes(value)
+      ? "text-emerald-700"
+      : "text-red-700"
+
+  const renderStatus = (value: string) => (
+    <span className={`font-medium ${getStatusClass(value)}`}>
+      {value}
+    </span>
+  )
 
   const inactiveRows = useMemo(
     () => inactive.map((item) => [
       item.full_name,
       item.class_name ?? "-",
       formatDate(item.class_date),
-      item.phone ? `\t${item.phone}` : "-",
+      item.phone ?? "-",
     ]),
     [inactive]
   )
@@ -95,7 +138,7 @@ export default function ReportsPage() {
   const eligibleRows = useMemo(
     () => eligible.map((item) => [
       item.full_name,
-      item.phone ? `\t${item.phone}` : "-",
+      item.phone ?? "-",
       String(item.attended_classes ?? "-"),
     ]),
     [eligible]
@@ -104,7 +147,7 @@ export default function ReportsPage() {
   const promotedRows = useMemo(
     () => promoted.map((item) => [
       item.full_name,
-      item.phone ? `\t${item.phone}` : "-",
+      item.phone ?? "-",
       formatDate(item.trip_date),
       formatDate(item.promoted_at),
     ]),
@@ -114,7 +157,7 @@ export default function ReportsPage() {
   const yetToAttendRows = useMemo(
     () => yetToAttend.map((item) => [
       item.full_name,
-      item.phone ? `\t${item.phone}` : "-",
+      item.phone ?? "-",
       String(item.attended_classes ?? "-"),
     ]),
     [yetToAttend]
@@ -123,10 +166,38 @@ export default function ReportsPage() {
   const yetToVolunteerRows = useMemo(
     () => yetToVolunteer.map((item) => [
       item.full_name,
-      item.phone ? `\t${item.phone}` : "-",
+      item.phone ?? "-",
       String(item.attended_classes ?? "-"),
     ]),
     [yetToVolunteer]
+  )
+
+  const selectedClassReport = useMemo(
+    () => classReport.find((item) => item.class_id === selectedClassId) ?? classReport[0],
+    [classReport, selectedClassId]
+  )
+
+  const classReportRows = useMemo(
+    () => (selectedClassReport?.students ?? []).map((item) => [
+      item.full_name,
+      item.phone ?? "-",
+    ]),
+    [selectedClassReport]
+  )
+
+  const allStudentClassHeaders = allStudents[0]?.classes ?? []
+
+  const allStudentsRows = useMemo(
+    () => allStudents.map((item) => [
+      item.full_name,
+      item.phone ?? "-",
+      ...item.classes.map((classItem) => classItem.status),
+      item.trip,
+      item.volunteering,
+      item.activity_status,
+      item.promotion_status,
+    ]),
+    [allStudents]
   )
 
   return (
@@ -151,16 +222,18 @@ export default function ReportsPage() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="inactive" className="w-full">
-            <TabsList>
+            <TabsList className="h-auto flex-wrap justify-start">
               <TabsTrigger value="inactive">Inactive</TabsTrigger>
               <TabsTrigger value="eligible">Eligible for Volunteering</TabsTrigger>
               <TabsTrigger value="yet-to-attend">Yet to Attend Trip</TabsTrigger>
               <TabsTrigger value="yet-to-volunteer">Yet to Volunteer</TabsTrigger>
+              <TabsTrigger value="by-class">Report by class</TabsTrigger>
               <TabsTrigger value="promoted">Promoted Students</TabsTrigger>
+              <TabsTrigger value="all-students">All Students</TabsTrigger>
             </TabsList>
 
             <TabsContent value="inactive" className="mt-4">
-              <div className="max-h-96 overflow-y-auto rounded-md border border-border/60">
+              <div className="max-h-96 overflow-auto rounded-md border border-border/60">
                 {loading ? (
                   <div className="divide-y">
                     {Array.from({ length: 4 }).map((_, i) => (
@@ -202,7 +275,7 @@ export default function ReportsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => downloadCsv(
+                  onClick={() => downloadExcel(
                     "inactive-students.csv",
                     [["Name", "Last Class Attended", "Last Class Attended On", "Phone No"], ...inactiveRows]
                   )}
@@ -215,7 +288,7 @@ export default function ReportsPage() {
             </TabsContent>
 
             <TabsContent value="eligible" className="mt-4">
-              <div className="max-h-96 overflow-y-auto rounded-md border border-border/60">
+              <div className="max-h-96 overflow-auto rounded-md border border-border/60">
                 {loading ? (
                   <div className="divide-y">
                     {Array.from({ length: 4 }).map((_, i) => (
@@ -255,7 +328,7 @@ export default function ReportsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => downloadCsv(
+                  onClick={() => downloadExcel(
                     "eligible-volunteering.csv",
                     [["Name", "Phone No", "Classes Attended"], ...eligibleRows]
                   )}
@@ -268,7 +341,7 @@ export default function ReportsPage() {
             </TabsContent>
 
             <TabsContent value="yet-to-attend" className="mt-4">
-              <div className="max-h-96 overflow-y-auto rounded-md border border-border/60">
+              <div className="max-h-96 overflow-auto rounded-md border border-border/60">
                 {loading ? (
                   <div className="divide-y">
                     {Array.from({ length: 4 }).map((_, i) => (
@@ -308,7 +381,7 @@ export default function ReportsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => downloadCsv(
+                  onClick={() => downloadExcel(
                     "yet-to-attend-trip.csv",
                     [["Name", "Phone No", "Classes Attended"], ...yetToAttendRows]
                   )}
@@ -321,7 +394,7 @@ export default function ReportsPage() {
             </TabsContent>
 
             <TabsContent value="yet-to-volunteer" className="mt-4">
-              <div className="max-h-96 overflow-y-auto rounded-md border border-border/60">
+              <div className="max-h-96 overflow-auto rounded-md border border-border/60">
                 {loading ? (
                   <div className="divide-y">
                     {Array.from({ length: 4 }).map((_, i) => (
@@ -361,7 +434,7 @@ export default function ReportsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => downloadCsv(
+                  onClick={() => downloadExcel(
                     "yet-to-volunteer.csv",
                     [["Name", "Phone No", "Classes Attended"], ...yetToVolunteerRows]
                   )}
@@ -373,8 +446,71 @@ export default function ReportsPage() {
               </div>
             </TabsContent>
 
+            <TabsContent value="by-class" className="mt-4">
+              <div className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+                <Select value={selectedClassReport?.class_id ?? ""} onValueChange={setSelectedClassId}>
+                  <SelectTrigger className="w-full sm:w-64">
+                    <SelectValue placeholder="Select class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classReport.map((item) => (
+                      <SelectItem key={item.class_id} value={item.class_id}>
+                        {item.class_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadExcel(
+                    `${selectedClassReport?.class_name ?? "class"}-not-attended.csv`,
+                    [["Name", "Phone No"], ...classReportRows]
+                  )}
+                  disabled={loading || classReportRows.length === 0}
+                >
+                  <Download className="size-4" />
+                  Download Excel
+                </Button>
+              </div>
+              <div className="max-h-96 overflow-auto rounded-md border border-border/60">
+                {loading ? (
+                  <div className="divide-y">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-4 px-6 py-4">
+                        <Skeleton className="h-4 w-40" />
+                      </div>
+                    ))}
+                  </div>
+                ) : !selectedClassReport || selectedClassReport.students.length === 0 ? (
+                  <div className="px-6 py-6 text-sm text-muted-foreground">All students have attended this class.</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Phone No</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedClassReport.students.map((item) => (
+                        <TableRow
+                          key={item.id}
+                          className="cursor-pointer"
+                          onClick={() => openDetails(item.id)}
+                        >
+                          <TableCell>{item.full_name}</TableCell>
+                          <TableCell>{item.phone ?? "-"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </TabsContent>
+
             <TabsContent value="promoted" className="mt-4">
-              <div className="max-h-96 overflow-y-auto rounded-md border border-border/60">
+              <div className="max-h-96 overflow-auto rounded-md border border-border/60">
                 {loading ? (
                   <div className="divide-y">
                     {Array.from({ length: 4 }).map((_, i) => (
@@ -416,11 +552,84 @@ export default function ReportsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => downloadCsv(
+                  onClick={() => downloadExcel(
                     "promoted-students.csv",
                     [["Name", "Phone No", "Trip Date", "Promoted On"], ...promotedRows]
                   )}
                   disabled={loading || promotedRows.length === 0}
+                >
+                  <Download className="size-4" />
+                  Download Excel
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="all-students" className="mt-4">
+              <div className="max-h-96 overflow-auto rounded-md border border-border/60">
+                {loading ? (
+                  <div className="divide-y">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-4 px-6 py-4">
+                        <Skeleton className="h-4 w-40" />
+                      </div>
+                    ))}
+                  </div>
+                ) : allStudents.length === 0 ? (
+                  <div className="px-6 py-6 text-sm text-muted-foreground">No students found.</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Phone Number</TableHead>
+                        {allStudentClassHeaders.map((classItem) => (
+                          <TableHead key={classItem.class_id} className="text-center">{classItem.class_name}</TableHead>
+                        ))}
+                        <TableHead className="text-center">Trip</TableHead>
+                        <TableHead className="text-center">Volunteering</TableHead>
+                        <TableHead className="text-center">Activity Status</TableHead>
+                        <TableHead className="text-center">Promotion Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {allStudents.map((item) => (
+                        <TableRow
+                          key={item.id}
+                          className="cursor-pointer"
+                          onClick={() => openDetails(item.id)}
+                        >
+                          <TableCell>{item.full_name}</TableCell>
+                          <TableCell>{item.phone ?? "-"}</TableCell>
+                          {item.classes.map((classItem) => (
+                            <TableCell key={classItem.class_id} className="text-center">{renderStatus(classItem.status)}</TableCell>
+                          ))}
+                          <TableCell className="text-center">{renderStatus(item.trip)}</TableCell>
+                          <TableCell className="text-center">{renderStatus(item.volunteering)}</TableCell>
+                          <TableCell className="text-center">{renderStatus(item.activity_status)}</TableCell>
+                          <TableCell className="text-center">{renderStatus(item.promotion_status)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+              <div className="flex justify-end pt-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadExcel(
+                    "all-students-report.csv",
+                    [[
+                      "Name",
+                      "Phone Number",
+                      ...allStudentClassHeaders.map((classItem) => classItem.class_name),
+                      "Trip",
+                      "Volunteering",
+                      "Activity Status",
+                      "Promotion Status",
+                    ], ...allStudentsRows]
+                  )}
+                  disabled={loading || allStudentsRows.length === 0}
                 >
                   <Download className="size-4" />
                   Download Excel
@@ -443,7 +652,9 @@ export default function ReportsPage() {
       >
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Student Details</DialogTitle>
+            <DialogTitle>
+              {detailsData?.student.full_name ? `Student Details - ${detailsData.student.full_name}` : "Student Details"}
+            </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               View class attendance for the selected student.
             </DialogDescription>
@@ -477,7 +688,7 @@ export default function ReportsPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {row.status === "present" ? formatDate(row.attended_on) : "-"}
+                      {row.status === "present" ? formatAttendanceDates(row) : "-"}
                     </TableCell>
                   </TableRow>
                 ))}
