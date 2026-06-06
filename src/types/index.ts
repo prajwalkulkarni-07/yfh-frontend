@@ -6,6 +6,7 @@ export interface User {
 }
 
 export type PortalType = "yfh" | "gita"
+export type StudentType = "studying" | "working" | "not_studying_not_working"
 
 export interface Student {
   id: string
@@ -13,13 +14,14 @@ export interface Student {
   email?: string
   phone: string
   age: number
-  student_type: "studying" | "working"
+  student_type: StudentType
   college_name?: string | null
   branch?: string | null
   semester?: number | null
   company_name?: string | null
   designation?: string | null
   experience?: number | null
+  description?: string | null
   active: boolean
   level?: number
   promoted_at?: string | null

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -22,20 +23,21 @@ import {
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getGitaStudent, getGitaStudentAttendance, updateStudent } from "@/services/api"
-import type { GitaAttendanceRow, Student } from "@/types"
+import type { GitaAttendanceRow, Student, StudentType } from "@/types"
 import { format } from "date-fns"
 
 interface StudentFormData {
   full_name: string
   phone: string
   age: string
-  student_type: "studying" | "working" | ""
+  student_type: StudentType | ""
   college_name: string
   branch: string
   semester: string
   company_name: string
   designation: string
   experience: string
+  description: string
 }
 
 const EMPTY_FORM: StudentFormData = {
@@ -49,6 +51,14 @@ const EMPTY_FORM: StudentFormData = {
   company_name: "",
   designation: "",
   experience: "",
+  description: "",
+}
+
+const getStudentTypeLabel = (type?: Student["student_type"] | null) => {
+  if (type === "studying") return "Studying"
+  if (type === "working") return "Working"
+  if (type === "not_studying_not_working") return "Not Studying/Not Working"
+  return "-"
 }
 
 const getFormData = (student: Student): StudentFormData => ({
@@ -68,6 +78,7 @@ const getFormData = (student: Student): StudentFormData => ({
     student.experience !== undefined && student.experience !== null
       ? String(student.experience)
       : "",
+  description: student.description ?? "",
 })
 
 export default function GitaStudentDetailsPage() {
@@ -154,6 +165,10 @@ export default function GitaStudentDetailsPage() {
       setFormError("Experience must be a non-negative number")
       return
     }
+    if (formData.student_type === "not_studying_not_working" && !formData.description.trim()) {
+      setFormError("Description is required")
+      return
+    }
 
     setSaving(true)
     setFormError(null)
@@ -180,6 +195,10 @@ export default function GitaStudentDetailsPage() {
             : undefined,
         experience:
           formData.student_type === "working" ? parsedExperience : undefined,
+        description:
+          formData.student_type === "not_studying_not_working"
+            ? formData.description.trim()
+            : undefined,
       }
       const updated = await updateStudent(id, payload)
       setStudent(updated)
@@ -230,7 +249,7 @@ export default function GitaStudentDetailsPage() {
               <div>
                 <div className="text-lg font-semibold text-foreground">{student.full_name}</div>
                 <div className="text-sm text-muted-foreground">
-                  {student.student_type === "studying" ? "Studying" : "Working"}
+                  {getStudentTypeLabel(student.student_type)}
                 </div>
               </div>
 
@@ -274,13 +293,14 @@ export default function GitaStudentDetailsPage() {
                     onValueChange={(value) =>
                       setFormData((prev) => ({
                         ...prev,
-                        student_type: value as "studying" | "working",
+                        student_type: value as StudentType,
                         college_name: value === "studying" ? prev.college_name : "",
                         branch: value === "studying" ? prev.branch : "",
                         semester: value === "studying" ? prev.semester : "",
                         company_name: value === "working" ? prev.company_name : "",
                         designation: value === "working" ? prev.designation : "",
                         experience: value === "working" ? prev.experience : "",
+                        description: value === "not_studying_not_working" ? prev.description : "",
                       }))
                     }
                   >
@@ -290,11 +310,12 @@ export default function GitaStudentDetailsPage() {
                     <SelectContent>
                       <SelectItem value="studying">Studying</SelectItem>
                       <SelectItem value="working">Working</SelectItem>
+                      <SelectItem value="not_studying_not_working">Not Studying/Not Working</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                {formData.student_type === "studying" ? (
+                {formData.student_type === "studying" && (
                   <>
                     <div className="space-y-2 sm:col-span-2">
                       <Label htmlFor="gita-college">College Name *</Label>
@@ -335,7 +356,8 @@ export default function GitaStudentDetailsPage() {
                       />
                     </div>
                   </>
-                ) : (
+                )}
+                {formData.student_type === "working" && (
                   <>
                     <div className="space-y-2 sm:col-span-2">
                       <Label htmlFor="gita-company">Company Name *</Label>
@@ -380,6 +402,22 @@ export default function GitaStudentDetailsPage() {
                       />
                     </div>
                   </>
+                )}
+                {formData.student_type === "not_studying_not_working" && (
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="gita-description">Description *</Label>
+                    <Textarea
+                      id="gita-description"
+                      placeholder="preparing for govt exams"
+                      value={formData.description}
+                      onChange={(event) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          description: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
                 )}
 
                 <div className="space-y-1 sm:col-span-2">

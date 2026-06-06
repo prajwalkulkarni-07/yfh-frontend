@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -37,19 +38,20 @@ import {
   getStudents,
   createStudent,
 } from "@/services/api"
-import type { Student } from "@/types"
+import type { Student, StudentType } from "@/types"
 
 interface StudentFormData {
   full_name: string
   phone: string
   age: string
-  student_type: "studying" | "working" | ""
+  student_type: StudentType | ""
   college_name: string
   branch: string
   semester: string
   company_name: string
   designation: string
   experience: string
+  description: string
 }
 
 const EMPTY_FORM: StudentFormData = {
@@ -63,6 +65,14 @@ const EMPTY_FORM: StudentFormData = {
   company_name: "",
   designation: "",
   experience: "",
+  description: "",
+}
+
+const getStudentTypeLabel = (type?: Student["student_type"] | null) => {
+  if (type === "studying") return "Studying"
+  if (type === "working") return "Working"
+  if (type === "not_studying_not_working") return "Not Studying/Not Working"
+  return "-"
 }
 
 export default function StudentsPage() {
@@ -110,7 +120,8 @@ export default function StudentsPage() {
         String(s.semester ?? "").includes(q) ||
         (s.company_name?.toLowerCase().includes(q) ?? false) ||
         (s.designation?.toLowerCase().includes(q) ?? false) ||
-        String(s.experience ?? "").includes(q)
+        String(s.experience ?? "").includes(q) ||
+        (s.description?.toLowerCase().includes(q) ?? false)
       )
     })
     .sort((a, b) => a.full_name.localeCompare(b.full_name, undefined, { sensitivity: "base" }))
@@ -170,6 +181,10 @@ export default function StudentsPage() {
       setFormError("Experience must be a non-negative number")
       return
     }
+    if (formData.student_type === "not_studying_not_working" && !formData.description.trim()) {
+      setFormError("Description is required")
+      return
+    }
     setFormLoading(true)
     setFormError(null)
     try {
@@ -177,7 +192,7 @@ export default function StudentsPage() {
         full_name: formData.full_name.trim(),
         phone: formData.phone.trim(),
         age: parsedAge,
-        student_type: formData.student_type as "studying" | "working",
+        student_type: formData.student_type,
         college_name:
           formData.student_type === "studying"
             ? formData.college_name.trim()
@@ -201,6 +216,10 @@ export default function StudentsPage() {
         experience:
           formData.student_type === "working"
             ? parsedExperience
+            : undefined,
+        description:
+          formData.student_type === "not_studying_not_working"
+            ? formData.description.trim()
             : undefined,
       }
       await createStudent(payload)
@@ -334,9 +353,7 @@ export default function StudentsPage() {
                         Age {student.age ?? "-"}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {student.student_type
-                          ? (student.student_type === "studying" ? "Studying" : "Working")
-                          : "-"}
+                        {getStudentTypeLabel(student.student_type)}
                       </span>
                       {student.student_type === "studying" && student.college_name && (
                         <span className="text-xs text-muted-foreground">
@@ -366,6 +383,11 @@ export default function StudentsPage() {
                       {student.student_type === "working" && student.experience !== undefined && student.experience !== null && (
                         <span className="text-xs text-muted-foreground">
                           {student.experience} yrs
+                        </span>
+                      )}
+                      {student.student_type === "not_studying_not_working" && student.description && (
+                        <span className="text-xs text-muted-foreground">
+                          {student.description}
                         </span>
                       )}
                     </div>
@@ -428,13 +450,14 @@ export default function StudentsPage() {
                 onValueChange={(value) =>
                   setFormData((p) => ({
                     ...p,
-                    student_type: value as "studying" | "working",
+                    student_type: value as StudentType,
                     college_name: value === "studying" ? p.college_name : "",
                     branch: value === "studying" ? p.branch : "",
                     semester: value === "studying" ? p.semester : "",
                     company_name: value === "working" ? p.company_name : "",
                     designation: value === "working" ? p.designation : "",
                     experience: value === "working" ? p.experience : "",
+                    description: value === "not_studying_not_working" ? p.description : "",
                   }))
                 }
               >
@@ -444,6 +467,7 @@ export default function StudentsPage() {
                 <SelectContent>
                   <SelectItem value="studying">Studying</SelectItem>
                   <SelectItem value="working">Working</SelectItem>
+                  <SelectItem value="not_studying_not_working">Not Studying/Not Working</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -515,6 +539,19 @@ export default function StudentsPage() {
                   />
                 </div>
               </>
+            )}
+            {formData.student_type === "not_studying_not_working" && (
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="description">Description *</Label>
+                <Textarea
+                  id="description"
+                  placeholder="preparing for govt exams"
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData((p) => ({ ...p, description: e.target.value }))
+                  }
+                />
+              </div>
             )}
             {formError && (
               <p className="text-sm text-destructive">{formError}</p>

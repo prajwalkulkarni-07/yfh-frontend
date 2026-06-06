@@ -1,5 +1,6 @@
 import type {
   Student,
+  StudentType,
   AttendanceSession,
   AttendanceRecord,
   AttendanceEntry,
@@ -104,13 +105,14 @@ export async function createStudent(data: {
   full_name: string
   phone: string
   age: number
-  student_type: "studying" | "working"
+  student_type: StudentType
   college_name?: string
   branch?: string
   semester?: number
   company_name?: string
   designation?: string
   experience?: number
+  description?: string
 }): Promise<Student> {
   return request("/api/students", {
     method: "POST",

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,20 +33,21 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { deleteStudent, getStudentDetails, updateStudent } from "@/services/api"
-import type { Student, StudentDetailsResponse, StudentSessionDetail } from "@/types"
+import type { Student, StudentDetailsResponse, StudentSessionDetail, StudentType } from "@/types"
 import { format } from "date-fns"
 
 interface StudentFormData {
   full_name: string
   phone: string
   age: string
-  student_type: "studying" | "working" | ""
+  student_type: StudentType | ""
   college_name: string
   branch: string
   semester: string
   company_name: string
   designation: string
   experience: string
+  description: string
 }
 
 const EMPTY_FORM: StudentFormData = {
@@ -59,6 +61,7 @@ const EMPTY_FORM: StudentFormData = {
   company_name: "",
   designation: "",
   experience: "",
+  description: "",
 }
 
 export default function StudentDetailsPage() {
@@ -92,6 +95,7 @@ export default function StudentDetailsPage() {
           company_name: data.student.company_name ?? "",
           designation: data.student.designation ?? "",
           experience: data.student.experience !== undefined && data.student.experience !== null ? String(data.student.experience) : "",
+          description: data.student.description ?? "",
         })
       })
       .catch((err) => {
@@ -165,6 +169,10 @@ export default function StudentDetailsPage() {
       setFormError("Experience must be a non-negative number")
       return
     }
+    if (formData.student_type === "not_studying_not_working" && !formData.description.trim()) {
+      setFormError("Description is required")
+      return
+    }
     setSaving(true)
     setFormError(null)
     try {
@@ -172,7 +180,7 @@ export default function StudentDetailsPage() {
         full_name: formData.full_name.trim(),
         phone: formData.phone.trim(),
         age: parsedAge,
-        student_type: formData.student_type as "studying" | "working",
+        student_type: formData.student_type,
         college_name:
           formData.student_type === "studying"
             ? formData.college_name.trim()
@@ -196,6 +204,10 @@ export default function StudentDetailsPage() {
         experience:
           formData.student_type === "working"
             ? parsedExperience
+            : undefined,
+        description:
+          formData.student_type === "not_studying_not_working"
+            ? formData.description.trim()
             : undefined,
       }
       const updated = await updateStudent(id, payload)
@@ -337,13 +349,14 @@ export default function StudentDetailsPage() {
                   onValueChange={(value) =>
                     setFormData((p) => ({
                       ...p,
-                      student_type: value as "studying" | "working",
+                      student_type: value as StudentType,
                         college_name: value === "studying" ? p.college_name : "",
                         branch: value === "studying" ? p.branch : "",
                         semester: value === "studying" ? p.semester : "",
                         company_name: value === "working" ? p.company_name : "",
                         designation: value === "working" ? p.designation : "",
                         experience: value === "working" ? p.experience : "",
+                        description: value === "not_studying_not_working" ? p.description : "",
                     }))
                   }
                 >
@@ -353,6 +366,7 @@ export default function StudentDetailsPage() {
                   <SelectContent>
                     <SelectItem value="studying">Studying</SelectItem>
                     <SelectItem value="working">Working</SelectItem>
+                    <SelectItem value="not_studying_not_working">Not Studying/Not Working</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -424,6 +438,19 @@ export default function StudentDetailsPage() {
                     />
                   </div>
                 </>
+              )}
+              {formData.student_type === "not_studying_not_working" && (
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="description">Description *</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="preparing for govt exams"
+                    value={formData.description}
+                    onChange={(e) =>
+                      setFormData((p) => ({ ...p, description: e.target.value }))
+                    }
+                  />
+                </div>
               )}
               <div className="space-y-2 sm:col-span-2">
                 <Label>Promotion Status</Label>
