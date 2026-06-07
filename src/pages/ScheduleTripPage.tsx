@@ -111,7 +111,6 @@ export default function ScheduleTripPage() {
   // Combine eligible students with selected trip participants (for editing existing trips)
   const displayStudents = useMemo(() => {
     if (!selectedTrip) return students
-    const participantSet = new Set(selectedTrip.participants?.map(p => p.id) || [])
     const participantStudents = selectedTrip.participants?.filter(p => !students.find(s => s.id === p.id)) || []
     return [...students, ...participantStudents].sort((a, b) => 
       a.full_name.localeCompare(b.full_name)

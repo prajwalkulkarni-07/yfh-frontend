@@ -106,7 +106,6 @@ export default function ScheduleVolunteeringPage() {
   // Combine students with selected service participants (for editing existing services)
   const displayStudents = useMemo(() => {
     if (!selectedService) return students
-    const participantSet = new Set(selectedService.participants?.map(p => p.id) || [])
     const participantStudents = selectedService.participants?.filter(p => !students.find(s => s.id === p.id)) || []
     return [...students, ...participantStudents].sort((a, b) => 
       a.full_name.localeCompare(b.full_name)
