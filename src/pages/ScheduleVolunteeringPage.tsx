@@ -103,6 +103,16 @@ export default function ScheduleVolunteeringPage() {
     load()
   }, [])
 
+  // Combine students with selected service participants (for editing existing services)
+  const displayStudents = useMemo(() => {
+    if (!selectedService) return students
+    const participantSet = new Set(selectedService.participants?.map(p => p.id) || [])
+    const participantStudents = selectedService.participants?.filter(p => !students.find(s => s.id === p.id)) || []
+    return [...students, ...participantStudents].sort((a, b) => 
+      a.full_name.localeCompare(b.full_name)
+    )
+  }, [students, selectedService])
+
   useEffect(() => {
     if (!selectedService) return
     setError(null)
@@ -116,14 +126,14 @@ export default function ScheduleVolunteeringPage() {
 
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return students.filter((student) => {
+    return displayStudents.filter((student) => {
       if (!q) return true
       return (
         student.full_name.toLowerCase().includes(q) ||
         (student.phone?.includes(q) ?? false)
       )
     })
-  }, [students, search])
+  }, [displayStudents, search])
 
   const resetForm = () => {
     setSelectedServiceId(null)

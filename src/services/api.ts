@@ -122,11 +122,13 @@ export async function createStudent(data: {
 
 export async function getStudents(
   active?: boolean,
-  includePromoted?: boolean
+  includePromoted?: boolean,
+  eligibleForTrip?: boolean
 ): Promise<Student[]> {
   const params = new URLSearchParams()
   if (active !== undefined) params.set("active", String(active))
   if (includePromoted) params.set("include_promoted", "true")
+  if (eligibleForTrip) params.set("eligible_for_trip", "true")
   const query = params.toString() ? `?${params}` : ""
   return request(`/api/students${query}`)
 }
@@ -232,8 +234,10 @@ export async function getInactiveReport(): Promise<InactiveReportItem[]> {
   return request("/api/reports/inactive")
 }
 
-export async function getEligibleReport(): Promise<EligibleReportItem[]> {
-  return request("/api/reports/eligible")
+export async function getEligibleReport(
+  status: "eligible" | "not_eligible" = "eligible"
+): Promise<EligibleReportItem[]> {
+  return request(`/api/reports/eligible?status=${status}`)
 }
 
 export async function getPromotedReport(): Promise<PromotedReportItem[]> {
@@ -255,6 +259,25 @@ export async function getAllStudentsReport(): Promise<AllStudentsReportItem[]> {
 // Bhagavad Gita portal
 export async function getGitaStudents(): Promise<Student[]> {
   return request("/api/gita/students")
+}
+
+export async function createGitaStudent(data: {
+  full_name: string
+  phone: string
+  age: number
+  student_type: StudentType
+  college_name?: string
+  branch?: string
+  semester?: number
+  company_name?: string
+  designation?: string
+  experience?: number
+  description?: string
+}): Promise<Student> {
+  return request("/api/gita/students", {
+    method: "POST",
+    body: JSON.stringify(data),
+  })
 }
 
 export async function getGitaStudent(id: string): Promise<Student> {

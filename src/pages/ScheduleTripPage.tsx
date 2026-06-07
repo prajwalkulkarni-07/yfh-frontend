@@ -82,7 +82,7 @@ export default function ScheduleTripPage() {
       setError(null)
       try {
         const [studentsData, tripsData] = await Promise.all([
-          getStudents(undefined, true),
+          getStudents(undefined, true, true),
           getTrips(),
         ])
         setStudents(studentsData)
@@ -108,16 +108,26 @@ export default function ScheduleTripPage() {
     setDetails(selectedTrip.details ?? "")
   }, [selectedTrip])
 
+  // Combine eligible students with selected trip participants (for editing existing trips)
+  const displayStudents = useMemo(() => {
+    if (!selectedTrip) return students
+    const participantSet = new Set(selectedTrip.participants?.map(p => p.id) || [])
+    const participantStudents = selectedTrip.participants?.filter(p => !students.find(s => s.id === p.id)) || []
+    return [...students, ...participantStudents].sort((a, b) => 
+      a.full_name.localeCompare(b.full_name)
+    )
+  }, [students, selectedTrip])
+
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return students.filter((student) => {
+    return displayStudents.filter((student) => {
       if (!q) return true
       return (
         student.full_name.toLowerCase().includes(q) ||
         (student.phone?.includes(q) ?? false)
       )
     })
-  }, [students, search])
+  }, [displayStudents, search])
 
   const resetForm = () => {
     setSelectedTripId(null)
@@ -311,11 +321,14 @@ export default function ScheduleTripPage() {
                   {loading ? (
                     <div className="px-4 py-3 text-sm text-muted-foreground">Loading students…</div>
                   ) : filteredStudents.length === 0 ? (
-                    <div className="px-4 py-3 text-sm text-muted-foreground">No students found.</div>
+                    <div className="px-4 py-3 text-sm text-muted-foreground">
+                      {selectedTrip ? "No students found." : "No eligible students (students need at least 4 classes to be eligible for trips)."}
+                    </div>
                   ) : (
                     <div className="divide-y">
                       {filteredStudents.map((student) => {
                         const checked = selectedStudents.has(student.id)
+                        const isEligible = students.some(s => s.id === student.id)
                         return (
                           <label
                             key={student.id}
@@ -327,7 +340,12 @@ export default function ScheduleTripPage() {
                             />
                             <div className="flex flex-1 items-center justify-between gap-3">
                               <span className="font-medium text-foreground">{student.full_name}</span>
-                              <span className="text-xs text-muted-foreground">{student.phone}</span>
+                              <div className="flex items-center gap-2">
+                                {!isEligible && selectedTrip && (
+                                  <span className="text-xs text-orange-500">Not eligible</span>
+                                )}
+                                <span className="text-xs text-muted-foreground">{student.phone}</span>
+                              </div>
                             </div>
                           </label>
                         )

@@ -71,7 +71,7 @@ const EMPTY_FORM: StudentFormData = {
 const getStudentTypeLabel = (type?: Student["student_type"] | null) => {
   if (type === "studying") return "Studying"
   if (type === "working") return "Working"
-  if (type === "not_studying_not_working") return "Not Studying/Not Working"
+  if (type === "not_studying_not_working") return "Preparing for govt exams"
   return "-"
 }
 
@@ -467,7 +467,7 @@ export default function StudentsPage() {
                 <SelectContent>
                   <SelectItem value="studying">Studying</SelectItem>
                   <SelectItem value="working">Working</SelectItem>
-                  <SelectItem value="not_studying_not_working">Not Studying/Not Working</SelectItem>
+                  <SelectItem value="not_studying_not_working">Preparing for govt exams</SelectItem>
                 </SelectContent>
               </Select>
             </div>

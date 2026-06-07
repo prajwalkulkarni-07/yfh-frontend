@@ -7,13 +7,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getAllStudentsReport, getClassReport, getEligibleReport, getInactiveReport, getPromotedReport, getStudentDetails, getYetToAttendTripReport, getYetToVolunteerReport } from "@/services/api"
-import type { AllStudentsReportItem, ClassReportItem, EligibleReportItem, InactiveReportItem, PromotedReportItem, StudentDetailsResponse, StudentSessionDetail, YetToAttendTripReportItem, YetToVolunteerReportItem } from "@/types"
+import { getAllStudentsReport, getClassReport, getInactiveReport, getPromotedReport, getStudentDetails, getYetToAttendTripReport, getYetToVolunteerReport } from "@/services/api"
+import type { AllStudentsReportItem, ClassReportItem, InactiveReportItem, PromotedReportItem, StudentDetailsResponse, StudentSessionDetail, YetToAttendTripReportItem, YetToVolunteerReportItem } from "@/types"
 import { format } from "date-fns"
 
 export default function ReportsPage() {
   const [inactive, setInactive] = useState<InactiveReportItem[]>([])
-  const [eligible, setEligible] = useState<EligibleReportItem[]>([])
   const [yetToAttend, setYetToAttend] = useState<YetToAttendTripReportItem[]>([])
   const [yetToVolunteer, setYetToVolunteer] = useState<YetToVolunteerReportItem[]>([])
   const [classReport, setClassReport] = useState<ClassReportItem[]>([])
@@ -32,16 +31,14 @@ export default function ReportsPage() {
     setError(null)
     Promise.all([
       getInactiveReport(),
-      getEligibleReport(),
       getYetToAttendTripReport(),
       getYetToVolunteerReport(),
       getClassReport(),
       getPromotedReport(),
       getAllStudentsReport(),
     ])
-      .then(([inactiveData, eligibleData, yetToAttendData, yetToVolunteerData, classReportData, promotedData, allStudentsData]) => {
+      .then(([inactiveData, yetToAttendData, yetToVolunteerData, classReportData, promotedData, allStudentsData]) => {
         setInactive(inactiveData)
-        setEligible(eligibleData)
         setYetToAttend(yetToAttendData)
         setYetToVolunteer(yetToVolunteerData)
         setClassReport(classReportData)
@@ -81,35 +78,21 @@ export default function ReportsPage() {
     }
   }
 
-  const escapeHtml = (value: string) => {
-    return String(value ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-  }
-
   const downloadExcel = (filename: string, rows: string[][]) => {
-    const excelFilename = filename.replace(/\.(csv|xlsx?)$/i, "") + ".xls"
-    const tableRows = rows
-      .map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`)
-      .join("")
-    const html = `<!doctype html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <style>
-            table { border-collapse: collapse; }
-            td { border: 1px solid #d9cba6; padding: 6px; mso-number-format:"\\@"; }
-          </style>
-        </head>
-        <body><table>${tableRows}</table></body>
-      </html>`
-    const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" })
+    const csvFilename = filename.replace(/\.(csv|xlsx?|xls)$/i, "") + ".csv"
+    const csv = rows
+      .map((row) =>
+        row.map((cell) => {
+          const value = String(cell ?? "")
+          return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+        }).join(",")
+      )
+      .join("\r\n")
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = excelFilename
+    link.download = csvFilename
     link.click()
     URL.revokeObjectURL(url)
   }
@@ -135,15 +118,6 @@ export default function ReportsPage() {
     [inactive]
   )
 
-  const eligibleRows = useMemo(
-    () => eligible.map((item) => [
-      item.full_name,
-      item.phone ?? "-",
-      String(item.attended_classes ?? "-"),
-    ]),
-    [eligible]
-  )
-
   const promotedRows = useMemo(
     () => promoted.map((item) => [
       item.full_name,
@@ -167,7 +141,6 @@ export default function ReportsPage() {
     () => yetToVolunteer.map((item) => [
       item.full_name,
       item.phone ?? "-",
-      String(item.attended_classes ?? "-"),
     ]),
     [yetToVolunteer]
   )
@@ -205,7 +178,7 @@ export default function ReportsPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Reports</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Track inactivity, volunteering eligibility, and promotions
+          Track inactivity, trip eligibility, and promotions
         </p>
       </div>
 
@@ -224,7 +197,6 @@ export default function ReportsPage() {
           <Tabs defaultValue="inactive" className="w-full">
             <TabsList className="h-auto flex-wrap justify-start">
               <TabsTrigger value="inactive">Inactive</TabsTrigger>
-              <TabsTrigger value="eligible">Eligible for Volunteering</TabsTrigger>
               <TabsTrigger value="yet-to-attend">Yet to Attend Trip</TabsTrigger>
               <TabsTrigger value="yet-to-volunteer">Yet to Volunteer</TabsTrigger>
               <TabsTrigger value="by-class">Report by class</TabsTrigger>
@@ -280,59 +252,6 @@ export default function ReportsPage() {
                     [["Name", "Last Class Attended", "Last Class Attended On", "Phone No"], ...inactiveRows]
                   )}
                   disabled={loading || inactiveRows.length === 0}
-                >
-                  <Download className="size-4" />
-                  Download Excel
-                </Button>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="eligible" className="mt-4">
-              <div className="max-h-96 overflow-auto rounded-md border border-border/60">
-                {loading ? (
-                  <div className="divide-y">
-                    {Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="flex items-center gap-4 px-6 py-4">
-                        <Skeleton className="h-4 w-40" />
-                      </div>
-                    ))}
-                  </div>
-                ) : eligible.length === 0 ? (
-                  <div className="px-6 py-6 text-sm text-muted-foreground">No eligible students.</div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Phone No</TableHead>
-                        <TableHead>Classes Attended</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {eligible.map((item) => (
-                        <TableRow
-                          key={item.id}
-                          className="cursor-pointer"
-                          onClick={() => openDetails(item.id)}
-                        >
-                          <TableCell>{item.full_name}</TableCell>
-                          <TableCell>{item.phone ?? "-"}</TableCell>
-                          <TableCell>{item.attended_classes ?? "-"}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </div>
-              <div className="flex justify-end pt-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => downloadExcel(
-                    "eligible-volunteering.csv",
-                    [["Name", "Phone No", "Classes Attended"], ...eligibleRows]
-                  )}
-                  disabled={loading || eligibleRows.length === 0}
                 >
                   <Download className="size-4" />
                   Download Excel
@@ -404,14 +323,13 @@ export default function ReportsPage() {
                     ))}
                   </div>
                 ) : yetToVolunteer.length === 0 ? (
-                  <div className="px-6 py-6 text-sm text-muted-foreground">All eligible students have volunteered.</div>
+                  <div className="px-6 py-6 text-sm text-muted-foreground">All students have volunteered.</div>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Name</TableHead>
                         <TableHead>Phone No</TableHead>
-                        <TableHead>Classes Attended</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -423,7 +341,6 @@ export default function ReportsPage() {
                         >
                           <TableCell>{item.full_name}</TableCell>
                           <TableCell>{item.phone ?? "-"}</TableCell>
-                          <TableCell>{item.attended_classes ?? "-"}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -436,7 +353,7 @@ export default function ReportsPage() {
                   size="sm"
                   onClick={() => downloadExcel(
                     "yet-to-volunteer.csv",
-                    [["Name", "Phone No", "Classes Attended"], ...yetToVolunteerRows]
+                    [["Name", "Phone No"], ...yetToVolunteerRows]
                   )}
                   disabled={loading || yetToVolunteerRows.length === 0}
                 >

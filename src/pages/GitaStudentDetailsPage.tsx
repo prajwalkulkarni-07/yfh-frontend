@@ -57,7 +57,7 @@ const EMPTY_FORM: StudentFormData = {
 const getStudentTypeLabel = (type?: Student["student_type"] | null) => {
   if (type === "studying") return "Studying"
   if (type === "working") return "Working"
-  if (type === "not_studying_not_working") return "Not Studying/Not Working"
+  if (type === "not_studying_not_working") return "Preparing for govt exams"
   return "-"
 }
 
@@ -310,7 +310,7 @@ export default function GitaStudentDetailsPage() {
                     <SelectContent>
                       <SelectItem value="studying">Studying</SelectItem>
                       <SelectItem value="working">Working</SelectItem>
-                      <SelectItem value="not_studying_not_working">Not Studying/Not Working</SelectItem>
+                      <SelectItem value="not_studying_not_working">Preparing for govt exams</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -426,13 +426,6 @@ export default function GitaStudentDetailsPage() {
                     {student.promoted_at ? formatDate(student.promoted_at) : "-"}
                   </div>
                 </div>
-
-                {student.email && (
-                  <div className="space-y-1 sm:col-span-2">
-                    <div className="text-xs font-medium text-muted-foreground">Email</div>
-                    <div className="text-sm font-medium text-foreground">{student.email}</div>
-                  </div>
-                )}
 
                 {formError && (
                   <p className="text-sm text-destructive sm:col-span-2">{formError}</p>

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
-import { AuthContext, useAuthState } from "@/hooks/useAuth"
+import { AuthContext, useAuth, useAuthState } from "@/hooks/useAuth"
 import AppLayout from "@/components/AppLayout"
 import LoginPage from "@/pages/LoginPage"
 import DashboardPage from "@/pages/DashboardPage"
@@ -14,7 +14,7 @@ import GitaStudentDetailsPage from "@/pages/GitaStudentDetailsPage"
 import GitaAttendancePage from "@/pages/GitaAttendancePage"
 
 function PortalHome() {
-  const { portal } = useAuthState()
+  const { portal } = useAuth()
   if (portal === "gita") {
     return <Navigate to="/gita/students" replace />
   }

@@ -366,7 +366,7 @@ export default function StudentDetailsPage() {
                   <SelectContent>
                     <SelectItem value="studying">Studying</SelectItem>
                     <SelectItem value="working">Working</SelectItem>
-                    <SelectItem value="not_studying_not_working">Not Studying/Not Working</SelectItem>
+                    <SelectItem value="not_studying_not_working">Preparing for govt exams</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
